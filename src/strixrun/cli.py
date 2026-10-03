@@ -157,6 +157,139 @@ def config_show() -> None:
     typer.echo(json.dumps(SettingsStore().load().public_dict(), indent=2))
 
 
+# ---- commands that talk to a running server -----------------------------------------------
+
+
+class _Client:
+    def __init__(self, url: str | None, key: str | None) -> None:
+        import os
+
+        import httpx
+
+        if url is None:
+            port = SettingsStore().load().port
+            url = os.environ.get("STRIXRUN_URL", f"http://127.0.0.1:{port}")
+        key = key or os.environ.get("STRIXRUN_API_KEY")
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        self.url = url.rstrip("/")
+        self.http = httpx.Client(base_url=self.url, headers=headers, timeout=30)
+
+    def call(self, method: str, path: str, body: dict | None = None):
+        import httpx
+
+        try:
+            r = self.http.request(method, path, json=body if method != "GET" else None)
+        except httpx.ConnectError:
+            _fail(f"StrixRun isn't running at {self.url}. Start it with `strixrun serve`.")
+        if r.status_code == 401:
+            _fail("this server needs the API key: pass --key or set STRIXRUN_API_KEY")
+        return r
+
+    def resolve(self, name: str) -> dict:
+        models = self.call("GET", "/admin/models").json()["data"]
+        for m in models:
+            if name == m["id"] or name in m["aliases"]:
+                return m
+        _fail(f"no model named {name!r}. Downloaded: {', '.join(m['aliases'][0] for m in models) or 'none'}")
+        raise AssertionError  # unreachable
+
+
+def _error(r) -> str:
+    try:
+        return r.json()["error"]["message"]
+    except (ValueError, KeyError, TypeError):
+        return f"HTTP {r.status_code}"
+
+
+URL_OPT = typer.Option("--url", help="Server URL (default: http://127.0.0.1:<config port>, or STRIXRUN_URL).")
+KEY_OPT = typer.Option("--key", help="API key, if the server requires one (or STRIXRUN_API_KEY).")
+
+
+@app.command()
+def load(
+    model: Annotated[str, typer.Argument(help="Model alias or id.")],
+    ctx: Annotated[int | None, typer.Option(help="Context per request, in tokens.")] = None,
+    parallel: Annotated[int | None, typer.Option(help="Requests served at once.")] = None,
+    gpu_layers: Annotated[int | None, typer.Option(help="Layers to offload (999 = all).")] = None,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Load even if memory looks tight.")] = False,
+    no_wait: Annotated[bool, typer.Option("--no-wait", help="Return once loading starts.")] = False,
+    url: Annotated[str | None, URL_OPT] = None,
+    key: Annotated[str | None, KEY_OPT] = None,
+) -> None:
+    """Load a model and wait until it's serving."""
+    import time
+
+    c = _Client(url, key)
+    m = c.resolve(model)
+    preset = {k: v for k, v in {"ctx_per_request": ctx, "parallel": parallel, "n_gpu_layers": gpu_layers}.items()
+              if v is not None}
+    r = c.call("POST", f"/admin/models/{m['id']}/load", {"preset": preset, "confirm": yes})
+    if r.status_code == 409 and r.json().get("error", {}).get("code") == "needs_confirmation":
+        est = r.json()["estimate"]
+        typer.echo(f"Memory looks {est['verdict']}: needs about {est['estimate_bytes'] / 1e9:.1f} GB "
+                   f"of {est['available_bytes'] / 1e9:.1f} GB available.")
+        if not typer.confirm("Load anyway?"):
+            raise typer.Exit(1)
+        r = c.call("POST", f"/admin/models/{m['id']}/load", {"preset": preset, "confirm": True})
+    if r.status_code >= 400:
+        _fail(_error(r))
+    alias = m["aliases"][0]
+    if no_wait:
+        typer.echo(f"Loading {alias}")
+        return
+    start = time.monotonic()
+    tty = sys.stdout.isatty()
+    clear = "\r\033[K" if tty else ""
+    while True:
+        state = c.call("GET", f"/admin/models/{m['id']}").json()["state"]
+        if state["status"] == "ready":
+            typer.echo(f"{clear}{alias} is ready ({time.monotonic() - start:.1f}s). Use model \"{alias}\" at {c.url}/v1")
+            return
+        if state["status"] in ("crashed", "stopped"):
+            typer.echo(clear, nl=False)
+            logs = c.call("GET", f"/admin/models/{m['id']}/logs").json()["lines"][-15:]
+            for line in logs:
+                typer.secho(f"  {line}", err=True, fg=typer.colors.BRIGHT_BLACK)
+            _fail(f"{alias} couldn't load ({state.get('crash_class') or state['status']}): {state.get('reason')}")
+        if tty:
+            typer.echo(f"{clear}Loading {alias}… {time.monotonic() - start:.0f}s", nl=False)
+        time.sleep(0.5)
+
+
+@app.command()
+def unload(
+    model: Annotated[str, typer.Argument(help="Model alias or id.")],
+    url: Annotated[str | None, URL_OPT] = None,
+    key: Annotated[str | None, KEY_OPT] = None,
+) -> None:
+    """Unload a model."""
+    c = _Client(url, key)
+    m = c.resolve(model)
+    r = c.call("POST", f"/admin/models/{m['id']}/unload", {})
+    if r.status_code >= 400:
+        _fail(_error(r))
+    typer.echo(f"Unloaded {m['aliases'][0]}")
+
+
+@app.command()
+def ps(
+    url: Annotated[str | None, URL_OPT] = None,
+    key: Annotated[str | None, KEY_OPT] = None,
+) -> None:
+    """Show loaded models."""
+    rows = _Client(url, key).call("GET", "/admin/ps").json()["data"]
+    if not rows:
+        typer.echo("No models loaded.")
+        return
+    header = f"{'MODEL':40} {'STATUS':8} {'CTX':>7} {'SLOTS':>5} {'QUEUE':>5} {'MEMORY':>8} {'UP':>8}"
+    typer.echo(header)
+    for r in rows:
+        mem = f"{r['rss_bytes'] / 1e9:.1f}G" if r.get("rss_bytes") else "-"
+        up = f"{int(r['uptime_s'])}s" if r.get("uptime_s") is not None else "-"
+        typer.echo(f"{r['aliases'][0][:40]:40} {r['status']:8} {r['ctx_per_request'] or '-':>7} "
+                   f"{r['parallel'] or '-':>5} {r['queue_depth']:>5} {mem:>8} {up:>8}")
+
+
 def main() -> None:
     app()
 
