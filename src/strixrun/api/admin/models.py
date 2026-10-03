@@ -75,6 +75,19 @@ def update_model(model_id: str, body: AliasesIn, ctx: Ctx):
     return model_view(ctx, _entry(ctx, model_id))
 
 
+class EstimateIn(BaseModel):
+    preset: dict | None = None
+
+
+@router.post("/models/{model_id}/estimate")
+def estimate_model(model_id: str, body: EstimateIn, ctx: Ctx):
+    entry = _entry(ctx, model_id)
+    current = ctx.presets.load(entry.id, entry.meta).to_dict()
+    preset = Preset.from_dict({**current, **(body.preset or {})})
+    return {**ctx.estimator.estimate(entry, preset),
+            "ctx_per_request": preset.ctx_per_request, "parallel": preset.parallel}
+
+
 class LoadIn(BaseModel):
     preset: dict | None = None
     confirm: bool = False

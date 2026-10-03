@@ -12,8 +12,19 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from strixrun.gguf_meta import GGUFError, read_local_meta
+
 SHARD_RE = re.compile(r"^(?P<stem>.+)-(?P<idx>\d{5})-of-(?P<total>\d{5})\.gguf$", re.IGNORECASE)
 ALIAS_RE = re.compile(r"^[A-Za-z0-9._:@/+-]{1,128}$")
+QUANT_RE = re.compile(
+    r"(?<![A-Za-z0-9])(IQ\d_[A-Z]+|Q\d_K_[SMLX]L?|Q\d_K|Q\d_\d|Q\d|TQ\d_\d|MXFP4(?:_MOE)?|BF16|F16|F32)(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
+
+def quant_of(filename: str) -> str | None:
+    matches = QUANT_RE.findall(Path(filename).name)
+    return matches[-1].upper() if matches else None
 
 
 class RegistryError(ValueError):
@@ -200,13 +211,21 @@ class Registry:
         for first, group in sorted(group_shards(files).items()):
             if os.path.realpath(first) in known_paths:
                 continue
-            stem = SHARD_RE.sub(r"\g<stem>", Path(first).name).removesuffix(".gguf")
-            entry = ModelEntry(
-                id=f"local--{_slug(stem)}",
-                aliases=[],
-                paths=group,
-                size_bytes=sum(os.path.getsize(f) for f in group),
-                location=location,
-            )
+            try:
+                meta = read_local_meta(Path(first))
+            except (GGUFError, OSError):
+                continue  # not a readable GGUF (or still being written)
+            size = sum(os.path.getsize(f) for f in group)
+            quant = quant_of(first)
+            folder = Path(first).parent.name
+            if "--" in folder and quant:
+                # StrixRun's own <owner>--<repo>/ layout: same id as a fresh download
+                owner, repo = folder.split("--", 1)
+                entry = ModelEntry.from_download(owner, repo, quant, group, size, meta)
+                entry.location = location
+            else:
+                stem = SHARD_RE.sub(r"\g<stem>", Path(first).name).removesuffix(".gguf")
+                entry = ModelEntry(id=f"local--{_slug(stem)}", aliases=[], paths=group,
+                                   size_bytes=size, location=location, meta=meta)
             added.append(self.add(entry))
         return added

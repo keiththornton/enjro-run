@@ -26,7 +26,9 @@ from strixrun.backend import procutil
 from strixrun.backend.supervisor import LocalProcessBackend
 from strixrun.binaries.manager import BinaryError, BinaryManager
 from strixrun.context import AppContext
+from strixrun.downloads import Downloads
 from strixrun.events import EventBus
+from strixrun.memory import MemoryEstimator
 from strixrun.metrics import Metrics
 from strixrun.presets import PresetError, PresetStore
 from strixrun.proxy import Proxy
@@ -100,6 +102,7 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
         load_timeout=load_timeout,
     )
     proxy = Proxy(registry, backend, bus, idle_timeout=lambda: current().upstream_idle_timeout_s)
+    estimator = MemoryEstimator()
     return AppContext(
         bus=bus,
         settings=store,
@@ -109,6 +112,8 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
         proxy=proxy,
         binaries=binaries,
         metrics=Metrics(bus, backend, proxy),
+        estimator=estimator,
+        downloads=Downloads(bus, registry, lambda: Path(current().models_dirs[0]), estimator=estimator),
         requestlog=RequestLog(
             paths.db_path(), bus,
             ring_size=lambda: current().log_body_ring_size,
@@ -199,6 +204,7 @@ def create_app(
             sweeper.cancel()
             if installer:
                 installer.cancel()
+            await ctx.downloads.aclose()
             await ctx.backend.shutdown()
             await ctx.proxy.aclose()
             ctx.requestlog.close()

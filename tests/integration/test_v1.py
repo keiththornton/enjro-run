@@ -14,6 +14,7 @@ from strixrun.backend.base import ModelStatus
 from strixrun.presets import Preset, PresetStore
 from strixrun.registry import ModelEntry, Registry
 from strixrun.settings import SettingsError, SettingsStore
+from tests.fixtures.make_tiny_gguf import write_gguf
 
 from .conftest import serve_app
 
@@ -166,7 +167,7 @@ def test_lan_host_without_key_refuses_to_start(home):
 async def test_scan_dirs_are_registered_on_startup(home):
     d = home / "lmstudio"
     d.mkdir()
-    (d / "Other-Model.Q4_K_M.gguf").write_bytes(b"x")
+    write_gguf(d / "Other-Model.Q4_K_M.gguf")
     store = SettingsStore()
     s = store.load()
     s.extra_scan_dirs = [str(d)]

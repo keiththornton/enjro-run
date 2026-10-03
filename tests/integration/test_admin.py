@@ -181,3 +181,35 @@ async def test_session_without_key_configured(home):
         r = await c.post("/admin/session", json={"key": "anything"})
         assert r.json() == {"authenticated": True, "key_required": False}
         assert (await c.get("/admin/session")).json()["via"] == "loopback"
+
+
+async def test_estimate_and_confirmation_gate(home):
+    from strixrun.memory import MemoryEstimator
+    from tests.unit.test_memory import FakeProbe
+
+    a = app()
+    async with serve_app(a) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
+        # 1 GiB available: the fixed ~0.5 GiB compute overhead alone is > 85% → "tight"
+        a.state.ctx.estimator = MemoryEstimator(FakeProbe(available=600 * 1024 * 1024))
+        est = (await c.post(f"/admin/models/{MID}/estimate", json={"preset": {"ctx_per_request": 4096}})).json()
+        assert est["verdict"] == "tight" and est["ctx_per_request"] == 4096
+        r = await c.post(f"/admin/models/{MID}/load", json={})
+        assert r.status_code == 409
+        body = r.json()
+        assert body["error"]["code"] == "needs_confirmation" and body["estimate"]["verdict"] == "tight"
+        assert a.state.ctx.backend.loaded() == []
+        r = await c.post(f"/admin/models/{MID}/load", json={"confirm": True})
+        assert r.status_code == 202
+
+
+async def test_hf_routes_with_fake_hub(home):
+    from tests.unit.test_downloads import FILES, FakeHub
+
+    a = app()
+    async with serve_app(a) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
+        a.state.ctx.downloads.hub = FakeHub(FILES)
+        assert (await c.get("/admin/hf/search", params={"q": "model"})).json()["data"][0]["repo"]
+        listing = (await c.get("/admin/hf/repo/owner/Model-GGUF/files")).json()
+        assert {q["quant"] for q in listing["quants"]} == {"Q4_K_M", "Q8_0", "F16"}
+        r = await c.post("/admin/downloads", json={"repo": "owner/Model-GGUF", "quant": "Q9_X"})
+        assert r.status_code == 400

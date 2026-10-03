@@ -10,6 +10,7 @@ from strixrun.registry import (
     group_shards,
     make_id,
 )
+from tests.fixtures.make_tiny_gguf import write_gguf
 
 SAFE = re.compile(r"^[a-z0-9._-]+$")
 
@@ -108,17 +109,30 @@ def test_group_shards_incomplete_set_is_skipped():
     assert groups == {}
 
 
-def test_scan_registers_scan_models_once(tmp_path):
+def test_scan_registers_scan_models_once_with_metadata(tmp_path):
     d = tmp_path / "lm"
     d.mkdir()
-    (d / "My-Model.Q8_0.gguf").write_bytes(b"x" * 4)
+    write_gguf(d / "My-Model.Q8_0.gguf")
     (d / "notes.txt").write_text("ignore")
+    (d / "broken.Q4_K_M.gguf").write_bytes(b"not a gguf")
     reg = Registry(tmp_path / "models.json")
     added = reg.scan([d], location="scan")
     assert len(added) == 1
     m = added[0]
     assert m.location == "scan" and SAFE.match(m.id)
+    assert m.meta["architecture"] == "llama" and m.meta["n_layer"] == 2
     assert reg.scan([d], location="scan") == []  # already known
+
+
+def test_scan_of_store_layout_matches_download_id(tmp_path):
+    d = tmp_path / "store" / "nomic-ai--nomic-embed-text-v1.5-GGUF"
+    d.mkdir(parents=True)
+    write_gguf(d / "nomic-embed-text-v1.5.Q4_K_M.gguf", arch="nomic-bert", chat_template=None)
+    reg = Registry(tmp_path / "models.json")
+    (m,) = reg.scan([tmp_path / "store"], location="store")
+    assert m.id == make_id("nomic-ai", "nomic-embed-text-v1.5-GGUF", "Q4_K_M")
+    assert m.repo == "nomic-ai/nomic-embed-text-v1.5-GGUF" and m.quant == "Q4_K_M"
+    assert m.meta["embedding_only"] is True
 
 
 def test_scan_ignores_mmproj_and_incomplete(tmp_path):
