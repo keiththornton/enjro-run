@@ -1,0 +1,115 @@
+/* Design tokens — the single source for every color, size, and duration (docs/design/brief.md). */
+:root {
+  /* Color: inherited from Strix Data */
+  --bg: #111214;
+  --panel: #17181b;
+  --raised: #1d1f22;
+  --hover: #232528;
+  --border: #2a2c2f;
+  --border-soft: #222427;
+  --border-strong: #3a3d41;
+  --text: #dcdee2;
+  --secondary: #9a9da6;
+  --muted: #6f747e; /* decorative only — fails AA as text */
+  --accent: #d4f246; /* the only accent: live / active / primary */
+  --accent-soft: #d4f24612;
+  --accent-dark: #20250e;
+  --on-accent: #111214;
+  --danger: #f28b87;
+  --editor-active: #1a1c1f;
+
+  /* Color: StrixCode additions */
+  --meta: #83888f;
+  --add: #cfe188;
+  --del: #e8b0ad;
+  --del-soft: #f28b870d;
+  --selection: #d4f24637;
+  --scroll-thumb: #ffffff17;
+  --scroll-thumb-hover: #ffffff2d;
+  --kbd-border: #ffffff14;
+  --shadow-pop: 0 8px 24px #0006;
+  --overlay: #0b0c0e99;
+
+  /* Code and terminal colors — desaturated, never lime */
+  --syn-keyword: var(--text);
+  --syn-string: var(--add);
+  --syn-const: #b9c3d6;
+  --syn-comment: var(--meta);
+  --syn-punct: var(--secondary);
+  --ansi-red: var(--danger);
+  --ansi-yellow: #e6d3a3;
+  --ansi-blue: #9fb4d9;
+  --ansi-magenta: #c7a8d9;
+  --ansi-cyan: #9fd0c7;
+
+  /* Type */
+  --sans: "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --fs-11: 11px;
+  --lh-11: 16px;
+  --fs-12: 12px;
+  --lh-12: 16px;
+  --lh-12-code: 20px;
+  --fs-13: 13px;
+  --lh-13: 18px;
+  --fs-14: 14px;
+  --lh-14: 22px;
+  --lh-14-title: 20px;
+  /* Markdown preview h2 only (plan 2026-09-27). */
+  --fs-16: 16px;
+  --lh-16: 24px;
+  --fs-20: 20px;
+  --lh-20: 28px;
+  --tracking-eyebrow: 0.06em;
+
+  /* Space (4px base) */
+  --s-2: 2px;
+  --s-4: 4px;
+  --s-6: 6px;
+  --s-8: 8px;
+  --s-10: 10px;
+  --s-12: 12px;
+  --s-16: 16px;
+  --s-20: 20px;
+  --s-24: 24px;
+  --s-28: 28px;
+
+  /* Shape */
+  --r-chip: 4px;
+  --r-tag: 3px;
+  --r-control: 6px;
+  --r-button: 5px;
+  --r-thumb: 5px;
+  --focus-ring: 2px solid var(--accent);
+
+  /* Frame */
+  --topbar-h: 44px;
+  --statusbar-h: 24px;
+  --panel-header-h: 44px;
+  --traffic-light-gutter: 90px; /* 15pt inset + 60pt of dots + 15pt: matches trafficLightPosition in electron/main.cjs */
+  --tasks-w: 352px; /* = PANEL_BOUNDS.tasks.fallback (src/shell/panelBounds.ts); keep in sync */
+  --panel-w: 300px; /* = PANEL_BOUNDS.panel.fallback */
+  --panel-rail-w: 36px;
+  --panel-collapse-below: 1320px;
+  --tree-w: 260px; /* = PANEL_BOUNDS.tree.fallback */
+  --rail-w: 44px;
+  --convpanel-w: 380px; /* = PANEL_BOUNDS.conversation.fallback */
+  --gitside-w: 260px; /* = PANEL_BOUNDS.gitSidebar.fallback */
+  --gitdetail-w: 340px; /* = PANEL_BOUNDS.gitDetail.fallback */
+  --gitgraph-h: 360px; /* = PANEL_BOUNDS.gitGraph.fallback */
+  --conv-max-w: 728px;
+  --control-h-sm: 26px;
+  --control-h-md: 30px;
+  --icon: 14px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-press: 100ms;
+  --dur-hover: 120ms;
+  --dur-expand: 160ms;
+  --dur-pop: 150ms;
+  --dur-dialog: 200ms;
+  --dur-exit: 100ms;
+  --dur-spin: 800ms;
+}

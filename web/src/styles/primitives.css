@@ -1,0 +1,320 @@
+/* Primitives. Every value comes from tokens.css. */
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-6);
+  border: 1px solid var(--border);
+  border-radius: var(--r-button);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn-sm {
+  height: var(--control-h-sm);
+  padding: 0 var(--s-10);
+}
+.btn-md {
+  height: var(--control-h-md);
+  padding: 0 var(--s-12);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--border-strong);
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:active:not(:disabled) {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: var(--accent);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--secondary);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.btn-danger {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--danger);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--del-soft);
+}
+.btn .kbd {
+  margin-left: var(--s-2);
+}
+.btn-primary .kbd {
+  color: var(--on-accent);
+  border-color: var(--on-accent);
+}
+.btn svg {
+  width: var(--icon);
+  height: var(--icon);
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border-radius: var(--r-button);
+  color: var(--secondary);
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+.icon-btn svg {
+  width: var(--icon);
+  height: var(--icon);
+}
+
+/* Small labels */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: 20px;
+  padding: 0 var(--s-6);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--raised);
+  font: var(--fs-11) / 1 var(--mono);
+  color: var(--secondary);
+  white-space: nowrap;
+}
+.chip svg {
+  width: 12px;
+  height: 12px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-6);
+  border: 1px solid var(--border);
+  border-radius: var(--r-tag);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  color: var(--secondary);
+}
+.eyebrow {
+  font-size: var(--fs-11);
+  line-height: var(--lh-11);
+  font-weight: 600;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--meta);
+}
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border: 1px solid var(--kbd-border);
+  border-radius: var(--r-chip);
+  font: 450 var(--fs-11) / 1.15 var(--sans);
+  color: var(--secondary);
+  white-space: nowrap;
+}
+
+.monogram {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--raised);
+  font: 600 10px / 1 var(--mono);
+  letter-spacing: 0.02em;
+  color: var(--secondary);
+}
+.monogram-md {
+  width: 20px;
+  height: 20px;
+}
+.monogram-sm {
+  width: 18px;
+  height: 18px;
+}
+.monogram-live {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--secondary);
+  border-radius: 50%;
+  animation: strix-spin var(--dur-spin) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+.text-field {
+  height: var(--control-h-md);
+  padding: 0 var(--s-10);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--bg);
+  font-size: var(--fs-13);
+  transition: border-color var(--dur-hover) var(--ease-out);
+}
+.text-field:hover {
+  border-color: var(--border-strong);
+}
+.text-field-mono {
+  font-family: var(--mono);
+  font-size: var(--fs-12);
+}
+
+/* Overlays */
+.tooltip {
+  z-index: 50;
+  padding: var(--s-4) var(--s-8);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-12);
+  color: var(--text);
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+.menu,
+.popover {
+  z-index: 50;
+  min-width: 180px;
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+}
+.menu {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+}
+.popover {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.context-menu {
+  transform-origin: var(--radix-context-menu-content-transform-origin);
+}
+.menu-item-mono {
+  font: var(--fs-12) / 1 var(--mono);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-12);
+  height: 28px;
+  padding: 0 var(--s-8);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-13);
+  color: var(--text);
+  outline: none;
+  cursor: default;
+}
+.menu-item[data-highlighted] {
+  background: var(--hover);
+}
+.menu-item-danger {
+  color: var(--danger);
+}
+.menu-separator {
+  height: 1px;
+  margin: var(--s-4) 0;
+  background: var(--border-soft);
+}
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--overlay);
+}
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 41;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  padding: var(--s-20);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  translate: -50% -50%;
+}
+.dialog-title {
+  font-size: var(--fs-14);
+  line-height: var(--lh-14-title);
+  font-weight: 600;
+}
+.dialog-description {
+  margin-top: var(--s-6);
+  font-size: var(--fs-13);
+  line-height: 20px;
+  color: var(--secondary);
+}
+
+/* Dialog footer and inline text actions */
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-8);
+  margin-top: var(--s-20);
+}
+.link-button {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 2px;
+}
+.link-button:hover {
+  text-decoration-color: var(--text);
+}
+
+/* Disabled buttons: muted text; a primary loses its lime (lime means live or primary *now*). */
+.btn:disabled,
+.icon-btn:disabled {
+  color: var(--muted);
+}
+.btn-primary:disabled {
+  border-color: var(--border);
+  background: var(--raised);
+}
+.btn:disabled .kbd {
+  color: var(--muted);
+}
+.menu-item[data-disabled] {
+  opacity: 1;
+  color: var(--muted);
+}
+
+/* Dialogs sit above any open menu or popover (z 50). */
+.dialog-overlay {
+  z-index: 60;
+}
+.dialog {
+  z-index: 61;
+}

@@ -1,0 +1,105 @@
+/* StrixRun app shell. Every value comes from tokens.css (StrixCode design brief). */
+
+.shell {
+  display: grid;
+  grid-template-rows: var(--topbar-h) 1fr var(--statusbar-h);
+  height: 100dvh;
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-16);
+  padding: 0 var(--s-16);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  min-width: 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text);
+}
+.segmented {
+  display: flex;
+  padding: var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--bg);
+}
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-6);
+  height: 22px;
+  padding: 0 var(--s-12);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--secondary);
+  transition: color var(--dur-hover) var(--ease-out);
+}
+.segmented button svg {
+  width: 13px;
+  height: 13px;
+}
+.segmented button:hover {
+  color: var(--text);
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--raised);
+  color: var(--text);
+}
+
+/* Page area */
+.page {
+  overflow: auto;
+  min-height: 0;
+}
+.page-body {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--s-24) var(--s-24) var(--s-28);
+}
+.page-title {
+  font-size: var(--fs-14);
+  line-height: var(--lh-14-title);
+  font-weight: 600;
+}
+
+/* Status bar */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  padding: 0 var(--s-12);
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  font: var(--fs-11) / 1 var(--mono);
+  color: var(--meta);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Phones: icons-only navigation, tighter gutters. */
+@media (max-width: 640px) {
+  .topbar {
+    gap: var(--s-8);
+    padding: 0 var(--s-12);
+  }
+  .brand span,
+  .nav-label {
+    display: none;
+  }
+  .segmented button {
+    padding: 0 var(--s-10);
+  }
+  .page-body {
+    padding: var(--s-16) var(--s-16) var(--s-24);
+  }
+}

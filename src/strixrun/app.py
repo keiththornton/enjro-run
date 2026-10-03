@@ -243,7 +243,7 @@ def _mount_dashboard(app: FastAPI) -> None:
     if (WEB_DIST / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(path: str):
         if path.split("/", 1)[0] in {"v1", "admin", "upstream", "metrics"}:
             raise errors.NotFound(f"/{path}")
