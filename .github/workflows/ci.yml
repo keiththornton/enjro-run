@@ -18,3 +18,19 @@ jobs:
       - run: uv sync --python 3.12
       - run: uv run ruff check
       - run: uv run pytest -q
+
+  e2e:
+    needs: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - run: uv sync --python 3.12
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/strixrun-e2e
+          key: strixrun-e2e-${{ hashFiles('src/strixrun/binaries/manifest.json') }}-v1
+      - run: uv run pytest -m e2e tests/e2e -v
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
