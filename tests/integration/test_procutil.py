@@ -28,11 +28,18 @@ async def wait_healthy(port: int, timeout: float = 15.0) -> None:
     raise AssertionError(f"port {port} never became healthy")
 
 
+def is_alive(pid: int) -> bool:
+    try:  # no pid_exists() pre-check: the process can exit between the two calls
+        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
 def wait_gone(pids: list[int], timeout: float = 5.0) -> list[int]:
     deadline = time.monotonic() + timeout
     alive = pids
     while time.monotonic() < deadline:
-        alive = [p for p in pids if psutil.pid_exists(p) and psutil.Process(p).status() != psutil.STATUS_ZOMBIE]
+        alive = [p for p in pids if is_alive(p)]
         if not alive:
             return []
         time.sleep(0.1)

@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import httpx
-import psutil
 import pytest
 
 from strixrun import errors as E
@@ -14,6 +13,8 @@ from strixrun.backend.supervisor import LocalProcessBackend, classify_crash
 from strixrun.events import EventBus
 from strixrun.presets import Preset
 from strixrun.registry import ModelEntry
+
+from .test_procutil import is_alive
 
 FAKE = str(Path(__file__).resolve().parents[1] / "fake_llama_server.py")
 
@@ -66,7 +67,7 @@ async def test_load_ready_target_logs_and_unload(backend, bus, tmp_path):
     pid = state.pid
     await backend.unload(m.id)
     assert backend.state(m.id).status is ModelStatus.STOPPED
-    assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
+    assert not is_alive(pid)
     assert not (tmp_path / "pids" / f"{m.id}.pid").exists()
     assert json.loads((tmp_path / "state.json").read_text())["loaded"] == []
 
