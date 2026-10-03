@@ -36,11 +36,19 @@ def version() -> None:
 def serve(
     port: Annotated[int | None, typer.Option(help="Port to listen on (default: from config, 8790).")] = None,
     log_level: Annotated[str, typer.Option(help="debug, info, warning or error.")] = "info",
+    log_file: Annotated[str | None, typer.Option(help="Write logs to this file (used by the login service).")] = None,
 ) -> None:
     """Run the StrixRun server."""
     from strixrun.app import create_app
 
-    logging.basicConfig(level=log_level.upper(), format="%(levelname)s %(name)s: %(message)s")
+    if log_file:
+        from pathlib import Path
+
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        stream = open(log_file, "a", buffering=1, encoding="utf-8")  # noqa: SIM115 - lives for the process
+        sys.stdout = sys.stderr = stream  # no console under launchd/pythonw
+    logging.basicConfig(level=log_level.upper(), format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        stream=sys.stderr, force=True)
     store = SettingsStore()
     try:
         settings = store.load()
@@ -288,6 +296,29 @@ def ps(
         up = f"{int(r['uptime_s'])}s" if r.get("uptime_s") is not None else "-"
         typer.echo(f"{r['aliases'][0][:40]:40} {r['status']:8} {r['ctx_per_request'] or '-':>7} "
                    f"{r['parallel'] or '-':>5} {r['queue_depth']:>5} {mem:>8} {up:>8}")
+
+
+service_app = typer.Typer(no_args_is_help=True, help="Start StrixRun automatically when you log in.")
+app.add_typer(service_app, name="service")
+
+
+@service_app.command("install")
+def service_install() -> None:
+    """Run StrixRun at login (launchd / Task Scheduler / systemd --user)."""
+    from strixrun import service
+
+    try:
+        typer.echo(service.install())
+    except service.ServiceError as e:
+        _fail(str(e))
+
+
+@service_app.command("uninstall")
+def service_uninstall() -> None:
+    """Stop running StrixRun at login."""
+    from strixrun import service
+
+    typer.echo(service.uninstall())
 
 
 def main() -> None:
