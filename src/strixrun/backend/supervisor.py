@@ -53,6 +53,14 @@ def classify_crash(lines: list[str], exit_code: int | None) -> tuple[str, str]:
     return "generic", f"llama-server exited (code {exit_code}); see the model's logs"
 
 
+def _same_model(props: httpx.Response, want: str) -> bool:
+    try:
+        path = props.json().get("model_path")
+    except ValueError:
+        return False
+    return isinstance(path, str) and os.path.realpath(path) == want
+
+
 @dataclass
 class _Child:
     model: ModelEntry
@@ -208,7 +216,8 @@ class LocalProcessBackend:
     async def _attempt(self, child: _Child, binary: list[str]) -> int | None:
         """One spawn. Returns the exit code if the process died while loading."""
         port = procutil.free_port()
-        child.api_key = secrets.token_urlsafe(24)
+        # hex, not urlsafe: a key starting with "-" would be parsed as a flag
+        child.api_key = secrets.token_hex(24)
         child.cmd = [
             *binary, "-m", child.model.primary_path,
             "--host", "127.0.0.1", "--port", str(port),
@@ -221,7 +230,7 @@ class LocalProcessBackend:
         reader = asyncio.create_task(self._read_logs(child, child.proc))
 
         exited = asyncio.create_task(child.proc.process.wait())
-        healthy = asyncio.create_task(self._poll_health(port))
+        healthy = asyncio.create_task(self._poll_health(child, port))
         done, _ = await asyncio.wait({exited, healthy}, timeout=self.load_timeout,
                                      return_when=asyncio.FIRST_COMPLETED)
         if healthy in done and healthy.result():
@@ -249,13 +258,26 @@ class LocalProcessBackend:
             cls, reason = classify_crash(list(child.logs), code)
             self._crashed(child, cls, reason)
 
-    async def _poll_health(self, port: int) -> bool:
+    async def _poll_health(self, child: _Child, port: int) -> bool:
+        """Wait until *our* child serves on `port`.
+
+        A port picked by free_port() can be taken by another process before the child
+        binds it, so /health alone could be answered by a stranger. Readiness also
+        requires /props to accept this child's random API key and report our model path.
+        """
+        base = f"http://127.0.0.1:{port}"
+        headers = {"Authorization": f"Bearer {child.api_key}"}
+        want = os.path.realpath(child.model.primary_path)
         async with httpx.AsyncClient(timeout=2.0) as client:
             while True:
                 try:
-                    r = await client.get(f"http://127.0.0.1:{port}/health")
-                    if r.status_code == 200:
-                        return True
+                    if (await client.get(f"{base}/health")).status_code == 200:
+                        props = await client.get(f"{base}/props", headers=headers)
+                        if props.status_code == 200 and _same_model(props, want):
+                            return True
+                        child.logs.append(
+                            f"strixrun: port {port} is answered by a different server; waiting"
+                        )
                 except httpx.TransportError:
                     pass
                 await asyncio.sleep(HEALTH_INTERVAL_S)

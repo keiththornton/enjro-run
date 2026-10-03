@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -84,6 +85,8 @@ async def test_command_line_uses_preset(backend):
     assert cmd[cmd.index("-m") + 1] == m.primary_path
     assert cmd[cmd.index("--host") + 1] == "127.0.0.1"
     assert "--api-key" in cmd and cmd[-2:] == ["--threads", "2"]
+    # regression: a urlsafe key could start with "-" and be parsed as a flag (~1.5% of loads)
+    assert re.fullmatch(r"[0-9a-f]{48}", cmd[cmd.index("--api-key") + 1])
 
 
 async def test_load_timeout_marks_crashed_and_kills(backend, monkeypatch):
@@ -107,7 +110,7 @@ async def test_early_exit_is_classified(backend, monkeypatch, signature, crash_c
     await backend.load(m, Preset())
     state = await backend.wait_settled(m.id)
     assert state.status is ModelStatus.CRASHED
-    assert state.crash_class == crash_class
+    assert state.crash_class == crash_class, (state.reason, backend.logs(m.id))
     assert any(line for line in backend.logs(m.id))
 
 
