@@ -9,3 +9,4 @@ node_modules/
 src/strixrun/web_dist/
 web/test-results/
 web/playwright-report/
+web/tsconfig.tsbuildinfo
