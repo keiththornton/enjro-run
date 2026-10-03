@@ -2,9 +2,10 @@
 
 from fastapi import APIRouter
 
-from strixrun.api.admin import models, requests, session
+from strixrun.api.admin import binary, models, requests, session
 
 router = APIRouter(prefix="/admin")
 router.include_router(session.router)
 router.include_router(models.router)
 router.include_router(requests.router)
+router.include_router(binary.router)

@@ -24,6 +24,7 @@ from strixrun.api import openai as openai_routes
 from strixrun.api import upstream as upstream_routes
 from strixrun.backend import procutil
 from strixrun.backend.supervisor import LocalProcessBackend
+from strixrun.binaries.manager import BinaryError, BinaryManager
 from strixrun.context import AppContext
 from strixrun.events import EventBus
 from strixrun.metrics import Metrics
@@ -68,22 +69,6 @@ class SecurityHeaders:
         await self.app(scope, receive, send_with_headers)
 
 
-def default_binary(settings: Callable[[], Settings]) -> Callable[[], list[str] | None]:
-    """Resolve the llama-server command: config override, else the installed pinned tag."""
-
-    def resolve() -> list[str] | None:
-        s = settings()
-        if s.binary_path:
-            return [s.binary_path] if Path(s.binary_path).exists() else None
-        if s.binary_tag:
-            exe = "llama-server.exe" if os.name == "nt" else "llama-server"
-            for candidate in (paths.bin_dir() / s.binary_tag).rglob(exe):
-                return [str(candidate)]
-        return None
-
-    return resolve
-
-
 def _session_secret() -> bytes:
     path = paths.run_dir() / "session_secret"
     if path.exists():
@@ -105,9 +90,10 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
 
     store.on_change(lambda s: bus.publish("settings.changed", s))
     registry = Registry(paths.registry_path())
+    binaries = BinaryManager(bus=bus, settings=store)
     backend = LocalProcessBackend(
         bus=bus,
-        binary=binary or default_binary(current),
+        binary=binary or binaries.command,
         templates_dir=paths.templates_dir(),
         pid_dir=paths.pid_dir(),
         state_path=paths.state_path(),
@@ -121,6 +107,7 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
         presets=PresetStore(paths.presets_dir()),
         backend=backend,
         proxy=proxy,
+        binaries=binaries,
         metrics=Metrics(bus, backend, proxy),
         requestlog=RequestLog(
             paths.db_path(), bus,
@@ -152,6 +139,29 @@ async def restore_loaded(ctx: AppContext) -> list[str]:
     return restored
 
 
+async def _install_on_start(ctx: AppContext) -> None:
+    """First run: fetch the pinned llama-server in the background. Failure isn't fatal."""
+    last_pct = -10
+
+    def report(ev):
+        nonlocal last_pct
+        d = ev.data
+        if d["phase"] == "download" and d.get("total"):
+            pct = int(100 * d["done"] / d["total"])
+            if pct >= last_pct + 10:
+                last_pct = pct
+                log.info("downloading %s: %d%%", d["asset"], pct)
+        elif d["phase"] in ("verify", "extract", "smoke_test", "done"):
+            log.info("llama-server install: %s", d["phase"])
+
+    ctx.bus.on("binary.progress", report)
+    try:
+        log.info("llama-server not installed; installing llama.cpp %s", ctx.binaries.manifest.default)
+        await ctx.binaries.install()
+    except BinaryError as e:
+        log.error("llama-server install failed: %s (retry from Settings in the dashboard)", e)
+
+
 async def _sweep_forever(ctx: AppContext) -> None:
     while True:
         with contextlib.suppress(Exception):
@@ -176,6 +186,9 @@ def create_app(
             log.warning("stopped %d llama-server process(es) left over from a previous run", len(killed))
         ctx = build_context(store, binary, load_timeout)
         app.state.ctx = ctx
+        installer = None
+        if binary is None and ctx.binaries.command() is None and not store.current.binary_path:
+            installer = asyncio.create_task(_install_on_start(ctx))
         rescan(ctx)
         if store.current.restore_loaded:
             await restore_loaded(ctx)
@@ -184,6 +197,8 @@ def create_app(
             yield
         finally:
             sweeper.cancel()
+            if installer:
+                installer.cancel()
             await ctx.backend.shutdown()
             await ctx.proxy.aclose()
             ctx.requestlog.close()
