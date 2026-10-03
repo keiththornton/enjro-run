@@ -29,6 +29,18 @@ class BadRequest(StrixError):
     status, type, code = 400, "invalid_request_error", "bad_request"
 
 
+class Unauthorized(StrixError):
+    status, type, code = 401, "authentication_error", "invalid_api_key"
+
+
+class Forbidden(StrixError):
+    status, type, code = 403, "permission_error", "forbidden"
+
+
+class Conflict(StrixError):
+    status, type, code = 409, "invalid_request_error", "conflict"
+
+
 class NotFound(StrixError):
     status, type, code = 404, "invalid_request_error", "not_found"
 

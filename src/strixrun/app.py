@@ -19,17 +19,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from strixrun import errors, paths
+from strixrun.api import admin as admin_routes
 from strixrun.api import openai as openai_routes
 from strixrun.backend import procutil
 from strixrun.backend.supervisor import LocalProcessBackend
 from strixrun.context import AppContext
 from strixrun.events import EventBus
-from strixrun.presets import PresetStore
+from strixrun.presets import PresetError, PresetStore
 from strixrun.proxy import Proxy
-from strixrun.registry import Registry
+from strixrun.registry import Registry, RegistryError
 from strixrun.requestlog import RequestLog
 from strixrun.security import SecurityMiddleware
-from strixrun.settings import Settings, SettingsStore
+from strixrun.settings import Settings, SettingsError, SettingsStore
 
 log = logging.getLogger(__name__)
 
@@ -185,10 +186,16 @@ def create_app(
 
     app = FastAPI(title="StrixRun", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     errors.install_handlers(app)
+    for exc_type in (PresetError, RegistryError, SettingsError):
+        app.add_exception_handler(
+            exc_type, lambda _r, e: errors.error_response(errors.BadRequest(str(e)))
+        )
     app.include_router(openai_routes.router)
-    _mount_dashboard(app)
+    app.include_router(admin_routes.router)
+    _mount_dashboard(app)  # last: its catch-all route must not shadow API routes
+    app.state.session_secret = _session_secret()
     app.add_middleware(SecurityMiddleware, settings=lambda: store.current,
-                       session_secret=_session_secret(), port=lambda: store.current.port)
+                       session_secret=app.state.session_secret, port=lambda: store.current.port)
     app.add_middleware(SecurityHeaders)
     return app
 

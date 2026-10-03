@@ -126,7 +126,9 @@ class SecurityMiddleware:
             elif origin == "null":
                 await _deny(send, 403, "permission_error", "cross-origin requests are not allowed")
                 return
-            if path.startswith(JSON_ONLY_PREFIXES):
+            # Only POST can be sent cross-site without a CORS preflight (which we never
+            # grant); requiring JSON blocks <form> and no-preflight fetch POSTs.
+            if method == "POST" and path.startswith(JSON_ONLY_PREFIXES):
                 ctype = headers.get("content-type", "").split(";", 1)[0].strip().lower()
                 if ctype != "application/json":
                     await _deny(send, 415, "invalid_request_error",

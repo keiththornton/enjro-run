@@ -115,6 +115,17 @@ async def test_text_plain_admin_post_rejected():
     assert r.status_code == 415
 
 
+async def test_bodyless_delete_allowed_same_origin():
+    app = build(LOCAL)
+
+    @app.delete("/admin/models/x")
+    def delete():
+        return {"ok": True}
+
+    async with client(app) as c:
+        assert (await c.delete("/admin/models/x")).status_code == 200
+
+
 async def test_cross_site_v1_post_rejected():
     async with client(build(LOCAL)) as c:
         r = await c.post("/v1/chat/completions", json={}, headers={"Origin": "http://evil.com"})
