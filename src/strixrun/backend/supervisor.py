@@ -228,6 +228,8 @@ class LocalProcessBackend:
             *binary, "-m", child.model.primary_path,
             "--host", "127.0.0.1", "--port", str(port),
             "--api-key", child.api_key,
+            # Without an alias llama-server reports the GGUF's absolute path as the model name.
+            "--alias", child.model.id,
             *llama_args(child.preset, self.templates_dir),
         ]
         child.proc = await procutil.spawn(child.cmd)

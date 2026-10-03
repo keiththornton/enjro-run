@@ -145,6 +145,7 @@ async def test_non_stream_passthrough_and_record(registry, bus):
     assert (rec.prompt_tokens, rec.completion_tokens) == (7, 5)
     assert rec.stream is False and rec.endpoint == "chat"
     assert rec.request_body["model"] == ALIAS  # the client's view, not the rewritten one
+    assert r.json()["model"] == ALIAS  # never the child's internal name (or a file path)
 
 
 async def test_upstream_error_status_passed_through(registry, bus):
@@ -200,6 +201,7 @@ async def test_stream_headers_usage_stripped_when_not_requested(registry, bus):
     assert events[-1] == "[DONE]"
     parsed = [json.loads(e) for e in events[:-1]]
     assert all(p["choices"] for p in parsed), "usage-only chunk must be hidden from this client"
+    assert {p["model"] for p in parsed} == {ALIAS}
     rec = seen[-1]
     assert rec.completion_tokens == 5 and rec.ttft_ms is not None and rec.stream is True
 

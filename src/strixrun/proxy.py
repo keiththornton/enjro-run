@@ -12,6 +12,7 @@ Responsibilities:
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -190,6 +191,7 @@ class Proxy:
             record.tok_per_s = m.tok_per_s
             if upstream.status_code != 200:
                 record.status, record.error = "error", m.error or f"HTTP {upstream.status_code}"
+            content = _rename_model(content, target.upstream_model_name, name)
             record.response_body = _decode_for_ring(content)
             self._publish(record)
             return Response(
@@ -197,7 +199,8 @@ class Proxy:
                 media_type=upstream.headers.get("content-type", "application/json"),
             )
 
-        return _ProxiedStream(self, upstream, gate, record, started, client_wants_usage, name)
+        return _ProxiedStream(self, upstream, gate, record, started, client_wants_usage, name,
+                              target.upstream_model_name)
 
     def _publish(self, record: RequestRecord) -> None:
         self.bus.publish("request.completed", record)
@@ -210,6 +213,15 @@ def _decode_for_ring(content: bytes):
         return json.loads(content)
     except ValueError:
         return content.decode("utf-8", "replace")
+
+
+def _rename_model(data: bytes, upstream_name: str, client_name: str) -> bytes:
+    """Report the model under the name the client asked for, not the child's internal one."""
+    if upstream_name == client_name:
+        return data
+    pattern = re.compile(rb'("model"\s*:\s*)' + re.escape(json.dumps(upstream_name).encode()))
+    replacement = json.dumps(client_name).encode()
+    return pattern.sub(lambda m: m.group(1) + replacement, data)
 
 
 def _is_usage_only(event: bytes) -> bool:
@@ -233,10 +245,12 @@ class _ProxiedStream(Response):
     """ASGI response that pumps upstream SSE to the client and cleans up exactly once."""
 
     def __init__(self, proxy: Proxy, upstream: httpx.Response, gate: _Gate,
-                 record: RequestRecord, started: float, client_wants_usage: bool, name: str) -> None:
+                 record: RequestRecord, started: float, client_wants_usage: bool, name: str,
+                 upstream_name: str) -> None:
         self.proxy, self.upstream, self.gate = proxy, upstream, gate
         self.record, self.started = record, started
         self.client_wants_usage, self.name = client_wants_usage, name
+        self.upstream_name = upstream_name
         self.meter = StreamMeter()
         self.status_code = 200
         self.background = None
@@ -288,6 +302,7 @@ class _ProxiedStream(Response):
                     event, buf = buf[: idx + 2], buf[idx + 2 :]
                     if not self.client_wants_usage and _is_usage_only(event):
                         continue
+                    event = _rename_model(event, self.upstream_name, self.name)
                     if len(transcript) <= MAX_RECORDED_BODY:
                         transcript += event
                     await send({"type": "http.response.body", "body": event, "more_body": True})
