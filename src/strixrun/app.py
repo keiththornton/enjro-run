@@ -241,7 +241,7 @@ def _mount_dashboard(app: FastAPI) -> None:
         return
 
     if (WEB_DIST / "assets").is_dir():
-        app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
+        app.mount("/assets", _ImmutableStatic(directory=WEB_DIST / "assets"), name="assets")
 
     @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(path: str):
@@ -249,5 +249,16 @@ def _mount_dashboard(app: FastAPI) -> None:
             raise errors.NotFound(f"/{path}")
         candidate = (WEB_DIST / path).resolve()
         if path and WEB_DIST.resolve() in candidate.parents and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(index)
+            return FileResponse(candidate, headers={"Cache-Control": "no-cache"})
+        # Always revalidate the shell: it names the current build's hashed bundles.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+
+class _ImmutableStatic(StaticFiles):
+    """Vite's /assets files are content-hashed, so they never change under a name."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response

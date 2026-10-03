@@ -28,9 +28,9 @@ export function App() {
           </a>
           <nav className="segmented" aria-label="Pages">
             {NAV.map((n) => (
-              <button key={n.page} type="button" aria-pressed={page === n.page} onClick={() => navigate(n.page)}>
+              <button key={n.page} type="button" aria-label={n.label} aria-pressed={page === n.page} onClick={() => navigate(n.page)}>
                 {n.icon}
-                <span className="nav-label">{n.label}</span>
+                <span className="nav-label" aria-hidden>{n.label}</span>
               </button>
             ))}
           </nav>

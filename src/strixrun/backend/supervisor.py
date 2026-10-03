@@ -42,6 +42,9 @@ CRASH_PATTERNS: list[tuple[str, re.Pattern, str]] = [
 ]
 
 
+BAD_ARGUMENT = re.compile(r"error while handling argument.*|invalid argument:.*", re.IGNORECASE)
+
+
 def classify_crash(lines: list[str], exit_code: int | None) -> tuple[str, str]:
     """Return (crash_class, human reason) from the stderr tail and exit code."""
     text = "\n".join(lines[-80:])
@@ -50,6 +53,9 @@ def classify_crash(lines: list[str], exit_code: int | None) -> tuple[str, str]:
     for cls, pattern, reason in CRASH_PATTERNS:
         if pattern.search(text):
             return cls, reason
+    bad = BAD_ARGUMENT.search(text)
+    if bad:
+        return "invalid_argument", f"llama-server rejected an argument: {bad.group(0).strip()[:160]}"
     return "generic", f"llama-server exited (code {exit_code}); see the model's logs"
 
 

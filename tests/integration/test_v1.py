@@ -176,3 +176,18 @@ async def test_scan_dirs_are_registered_on_startup(home):
     async with serve_app(a):
         scanned = [m for m in a.state.ctx.registry.all() if m.location == "scan"]
     assert len(scanned) == 1
+
+
+async def test_dashboard_cache_headers(home, tmp_path, monkeypatch):
+    from strixrun import app as app_module
+
+    dist = tmp_path / "web_dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<html>shell</html>")
+    (dist / "assets" / "index-abc123.js").write_text("console.log(1)")
+    monkeypatch.setattr(app_module, "WEB_DIST", dist)
+    async with serve_app(app()) as url, httpx.AsyncClient(base_url=url) as c:
+        shell = await c.get("/requests")
+        asset = await c.get("/assets/index-abc123.js")
+    assert shell.text == "<html>shell</html>" and shell.headers["cache-control"] == "no-cache"
+    assert "immutable" in asset.headers["cache-control"]

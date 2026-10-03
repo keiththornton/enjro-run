@@ -179,6 +179,11 @@ async def test_unload_during_loading(backend, monkeypatch):
     assert backend.state(m.id).status is ModelStatus.STOPPED
 
 
+def test_classify_crash_invalid_argument():
+    cls, reason = classify_crash(['error while handling argument "--threads": stoi: no conversion', "usage:"], 1)
+    assert cls == "invalid_argument" and "--threads" in reason
+
+
 def test_classify_crash_windows_dll_exit_code():
     assert classify_crash([], 3221225781)[0] == "missing_cuda_runtime"
     assert classify_crash(["something odd"], 1)[0] == "generic"
