@@ -13,18 +13,20 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from strixrun import errors, paths
 from strixrun.api import admin as admin_routes
 from strixrun.api import openai as openai_routes
+from strixrun.api import upstream as upstream_routes
 from strixrun.backend import procutil
 from strixrun.backend.supervisor import LocalProcessBackend
 from strixrun.context import AppContext
 from strixrun.events import EventBus
+from strixrun.metrics import Metrics
 from strixrun.presets import PresetError, PresetStore
 from strixrun.proxy import Proxy
 from strixrun.registry import Registry, RegistryError
@@ -111,13 +113,15 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
         state_path=paths.state_path(),
         load_timeout=load_timeout,
     )
+    proxy = Proxy(registry, backend, bus, idle_timeout=lambda: current().upstream_idle_timeout_s)
     return AppContext(
         bus=bus,
         settings=store,
         registry=registry,
         presets=PresetStore(paths.presets_dir()),
         backend=backend,
-        proxy=Proxy(registry, backend, bus, idle_timeout=lambda: current().upstream_idle_timeout_s),
+        proxy=proxy,
+        metrics=Metrics(bus, backend, proxy),
         requestlog=RequestLog(
             paths.db_path(), bus,
             ring_size=lambda: current().log_body_ring_size,
@@ -192,6 +196,13 @@ def create_app(
         )
     app.include_router(openai_routes.router)
     app.include_router(admin_routes.router)
+    app.include_router(upstream_routes.router)
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics(request: Request):
+        return PlainTextResponse(request.app.state.ctx.metrics.render(),
+                                 media_type="text/plain; version=0.0.4")
+
     _mount_dashboard(app)  # last: its catch-all route must not shadow API routes
     app.state.session_secret = _session_secret()
     app.add_middleware(SecurityMiddleware, settings=lambda: store.current,
