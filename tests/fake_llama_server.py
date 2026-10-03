@@ -154,6 +154,7 @@ def build_app(args: argparse.Namespace) -> FastAPI:
         usage = {"prompt_tokens": 7, "completion_tokens": n_tokens, "total_tokens": 7 + n_tokens}
 
         if not body.get("stream"):
+            await asyncio.sleep(env_float("FAKE_TOKEN_DELAY") * n_tokens)
             if use_tools:
                 message = {
                     "role": "assistant",

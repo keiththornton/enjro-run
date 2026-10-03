@@ -45,3 +45,7 @@ addopts = "-m 'not e2e and not network'"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+# Nested async-with blocks read more clearly in tests; test helpers spawn processes on purpose.
+"tests/**" = ["SIM117", "ASYNC220"]
