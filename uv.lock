@@ -952,7 +952,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "gguf" },
     { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "psutil" },
@@ -962,6 +961,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "gguf" },
     { name = "openai" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -971,7 +971,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "gguf", specifier = ">=0.10" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "huggingface-hub", specifier = ">=0.30" },
     { name = "psutil", specifier = ">=6.0" },
@@ -981,6 +980,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "gguf", specifier = ">=0.10" },
     { name = "openai", specifier = ">=1.60" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
