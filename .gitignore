@@ -7,3 +7,5 @@ build/
 .ruff_cache/
 node_modules/
 src/strixrun/web_dist/
+web/test-results/
+web/playwright-report/

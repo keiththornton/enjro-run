@@ -34,3 +34,23 @@ jobs:
       - run: uv run pytest -m e2e tests/e2e -v
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - run: uv sync --python 3.12
+      - working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npx playwright install --with-deps chromium
+          npx playwright test

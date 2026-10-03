@@ -64,13 +64,16 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
     return () => clearTimeout(t);
   }, [model.id, body]);
 
-  // Close shortly after the model becomes ready.
+  // Close shortly after the model becomes ready. The latest onClose lives in a ref so
+  // re-renders (every streamed log line) don't keep restarting the timer.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (submitted && status === "ready") {
-      const t = setTimeout(onClose, 600);
+      const t = setTimeout(() => closeRef.current(), 600);
       return () => clearTimeout(t);
     }
-  }, [submitted, status, onClose]);
+  }, [submitted, status]);
 
   const needsConfirm = est && est.verdict !== "ok";
   const busy = submitted && (status === "loading" || status === "stopping");
