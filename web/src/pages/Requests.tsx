@@ -46,7 +46,6 @@ export function RequestsPage() {
 
   // Live arrivals: prepend rows that match the current filter.
   useEffect(() => {
-    setLive(true);
     const unsubscribe = subscribe("/admin/requests/events", {
       "request.completed": (d) => {
         const row = d as RequestRow;
@@ -54,7 +53,7 @@ export function RequestsPage() {
         if (filter.status && row.status !== filter.status) return;
         setRows((r) => (r ? [row, ...r.filter((x) => x.id !== row.id)] : [row]));
       },
-    });
+    }, undefined, setLive);
     return () => {
       setLive(false);
       unsubscribe();
@@ -117,7 +116,9 @@ export function RequestsPage() {
 }
 
 function RequestStrip({ row, onOpen }: { row: RequestRow; onOpen: () => void }) {
-  const tokens = row.endpoint === "embeddings" ? `${row.prompt_tokens ?? "—"}` : `${row.prompt_tokens ?? "—"}→${row.completion_tokens ?? "—"}`;
+  const tokens = row.endpoint === "upstream" ? "—"
+    : row.endpoint === "embeddings" ? `${row.prompt_tokens ?? "—"}`
+    : `${row.prompt_tokens ?? "—"}→${row.completion_tokens ?? "—"}`;
   const label = `${row.alias_used ?? row.model_id}, ${row.endpoint}, ${row.status}, ${fmtTime(row.ts)}`;
   return (
     <button type="button" className="rack-row" role="row" data-status={row.status} onClick={onOpen} aria-label={label}>

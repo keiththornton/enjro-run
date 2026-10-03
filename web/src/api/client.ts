@@ -48,6 +48,7 @@ export function subscribe(
   path: string,
   handlers: Record<string, (data: unknown) => void>,
   makeSource: (url: string) => EventSource = (url) => new EventSource(url, { withCredentials: true }),
+  onStatus?: (connected: boolean) => void,
 ): () => void {
   let closed = false;
   let source: EventSource | null = null;
@@ -63,7 +64,9 @@ export function subscribe(
         }
       });
     }
+    source.onopen = () => onStatus?.(true);
     source.onerror = async () => {
+      onStatus?.(false);
       // EventSource can't see status codes: ask the session endpoint whether we're signed out.
       if (closed) return;
       const r = await fetch("/admin/session", { credentials: "same-origin" }).catch(() => null);
