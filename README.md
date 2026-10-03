@@ -15,8 +15,10 @@ It's a sister app to StrixCode and Strix Data, and shares their look.
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Building from source also needs Node 20+ for the dashboard.
 
 ```bash
-uv tool install git+https://github.com/keiththornton/strixrun
+uv tool install git+ssh://git@github.com/keiththornton/strixrun
 ```
+
+That works while the repository is private, using your GitHub SSH key. Once it's public, `git+https://github.com/keiththornton/strixrun` works too.
 
 ## Quickstart
 
@@ -163,7 +165,7 @@ Useful settings:
 
 ### Windows CUDA checklist
 
-1. `uv tool install git+https://github.com/keiththornton/strixrun`, then `strixrun serve`. The CUDA build and runtime download on their own (the build is chosen from your driver version).
+1. `uv tool install git+ssh://git@github.com/keiththornton/strixrun`, then `strixrun serve`. The CUDA build and runtime download on their own (the build is chosen from your driver version).
 2. Download and load a 7B model fully offloaded. In the load sheet's estimate, the limit should read "free VRAM".
 3. Run the e2e suite against it: `uv run pytest -m e2e tests/e2e`.
 4. End the StrixRun process in Task Manager. No `llama-server.exe` should remain.
