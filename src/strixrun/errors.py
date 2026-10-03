@@ -29,6 +29,13 @@ class BadRequest(StrixError):
     status, type, code = 400, "invalid_request_error", "bad_request"
 
 
+class NotFound(StrixError):
+    status, type, code = 404, "invalid_request_error", "not_found"
+
+    def __init__(self, path: str) -> None:
+        super().__init__(f"{path} does not exist")
+
+
 class ModelNotFound(StrixError):
     status, type, code = 404, "invalid_request_error", "model_not_found"
 
