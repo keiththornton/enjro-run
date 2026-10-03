@@ -58,6 +58,13 @@ class ModelCrashed(StrixError):
         )
 
 
+class AlreadyLoaded(StrixError):
+    status, type, code = 409, "invalid_request_error", "model_already_loaded"
+
+    def __init__(self, model: str) -> None:
+        super().__init__(f"model {model!r} is already loaded; unload it first to change settings.")
+
+
 class NeedsConfirmation(StrixError):
     status, type, code = 409, "invalid_request_error", "needs_confirmation"
 
