@@ -1,0 +1,10 @@
+data: {"id": "chatcmpl-fake1791050903776", "object": "chat.completion.chunk", "created": 1791050903, "model": "m", "choices": [{"index": 0, "delta": {"role": "assistant", "content": null}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl-fake1791050903776", "object": "chat.completion.chunk", "created": 1791050903, "model": "m", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_fake1", "type": "function", "function": {"name": "get_weather", "arguments": ""}}]}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl-fake1791050903776", "object": "chat.completion.chunk", "created": 1791050903, "model": "m", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{\"city\": \"Paris\"}"}}]}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl-fake1791050903776", "object": "chat.completion.chunk", "created": 1791050903, "model": "m", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}], "timings": {"prompt_n": 7, "prompt_ms": 12.5, "predicted_n": 5, "predicted_ms": 50.0, "predicted_per_second": 100.0}}
+
+data: [DONE]
+
