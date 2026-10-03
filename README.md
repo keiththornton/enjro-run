@@ -152,6 +152,7 @@ Useful settings:
 - **A gated model won't download:** accept its license on huggingface.co, then add a Hugging Face token in Settings.
 - **Hugging Face rate limits:** add a token in Settings, or retry in a few minutes.
 - **A model shows "Needs attention":** it crashed. The reason is on the strip, and the load sheet shows llama-server's output. Typical causes are out of memory, an architecture this llama.cpp build doesn't support (update the build in Settings), or a rejected extra argument.
+- **The first load after installing takes ~15 seconds:** on macOS that's the system checking the newly downloaded llama-server the first time it runs. Later loads take about a second.
 - **The dashboard says the dashboard isn't built:** you installed from source without Node. Run `npm ci && npm run build` in `web/`.
 
 ## Tested platforms
