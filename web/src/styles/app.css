@@ -103,3 +103,33 @@
     padding: var(--s-16) var(--s-16) var(--s-24);
   }
 }
+
+/* Key prompt */
+.key-dialog {
+  width: 420px;
+}
+.key-form {
+  margin-top: var(--s-16);
+}
+.key-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.key-input svg {
+  position: absolute;
+  left: var(--s-10);
+  width: var(--icon);
+  height: var(--icon);
+  color: var(--meta);
+}
+.key-input .text-field {
+  width: 100%;
+  padding-left: 32px;
+}
+.form-error {
+  margin-top: var(--s-8);
+  font-size: var(--fs-12);
+  line-height: var(--lh-12);
+  color: var(--danger);
+}

@@ -1,6 +1,7 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Boxes, Gauge, MessageSquare, Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { KeyPrompt } from "../components/KeyPrompt";
 import { ModelsPage } from "../pages/Models";
 import { PlaygroundPage } from "../pages/Playground";
 import { RequestsPage } from "../pages/Requests";
@@ -42,6 +43,7 @@ export function App() {
         </main>
         <StatusBar />
       </div>
+      <KeyPrompt />
     </Tooltip.Provider>
   );
 }
