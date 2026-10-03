@@ -228,6 +228,9 @@ async def _stream(cid, model, words, use_tools, include_usage, usage, timings):
         else:
             for i, w in enumerate(words):
                 if crash_after is not None and i >= crash_after:
+                    # Let already-sent tokens reach the client first: on Windows an abrupt
+                    # exit resets the socket, and a reset can discard unread received data.
+                    await asyncio.sleep(0.5)
                     sys.stderr.write("fake: simulated crash mid-stream\n")
                     sys.stderr.flush()
                     os._exit(1)
