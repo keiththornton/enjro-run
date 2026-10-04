@@ -401,11 +401,12 @@ def open_dashboard(
         exe = Path(sys.executable)
         pythonw = exe.with_name("pythonw.exe")
         cmd = [str(pythonw if os.name == "nt" and pythonw.exists() else exe), "-m", "strixrun", "serve", "--log-file", str(log)]
-        kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-        if os.name == "nt":
-            kwargs["creationflags"] = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-                                       | subprocess.CREATE_NO_WINDOW)
-        else:
+        from strixrun.winproc import hidden
+
+        kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+                        **hidden(subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                                 if os.name == "nt" else 0)}
+        if os.name != "nt":
             kwargs["start_new_session"] = True
         proc = subprocess.Popen(cmd, **kwargs)
         deadline = time.monotonic() + timeout

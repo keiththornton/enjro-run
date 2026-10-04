@@ -20,6 +20,8 @@ from pathlib import Path
 
 import psutil
 
+from strixrun.winproc import hidden
+
 STOP_GRACE_S = 10.0
 
 
@@ -127,10 +129,8 @@ class Proc:
 
 async def spawn(cmd: list[str], env: dict[str, str] | None = None) -> Proc:
     """Start `cmd` under the watchdog. stdout and stderr are merged into Proc.stdout."""
-    kwargs: dict = {}
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
+    kwargs: dict = hidden(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+    if os.name != "nt":
         kwargs["start_new_session"] = True
     process = await asyncio.create_subprocess_exec(
         sys.executable, "-m", "strixrun.backend.watchdog", "--", *cmd,
@@ -138,7 +138,7 @@ async def spawn(cmd: list[str], env: dict[str, str] | None = None) -> Proc:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         env={**os.environ, **(env or {})},
-        **kwargs,
+        **kwargs,  # includes hidden(): no console window on Windows
     )
     if os.name == "nt":
         _windows_job().assign(process.pid)

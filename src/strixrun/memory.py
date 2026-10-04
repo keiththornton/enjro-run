@@ -13,6 +13,7 @@ import psutil
 
 from strixrun.presets import Preset
 from strixrun.registry import ModelEntry
+from strixrun.winproc import hidden
 
 GiB = 1024**3
 # bytes per element; quantized types include their block scales
@@ -28,7 +29,7 @@ TIGHT_FRACTION = 0.85
 def _sysctl_int(name: str) -> int | None:
     try:
         out = subprocess.run(["sysctl", "-n", name], capture_output=True, text=True,
-                             timeout=2, check=False).stdout.strip()
+                             timeout=2, check=False, **hidden()).stdout.strip()
         return int(out)
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
@@ -56,13 +57,26 @@ class SystemProbe:
         value = _sysctl_int("iogpu.wired_limit_mb")
         return value if value and value > 0 else None
 
+    _vram_cache: tuple[float, int | None] | None = None
+    VRAM_CACHE_S = 5.0
+
     def nvidia_free_bytes(self) -> int | None:
+        import time
+
+        now = time.monotonic()
+        if self._vram_cache and now - self._vram_cache[0] < self.VRAM_CACHE_S:
+            return self._vram_cache[1]
+        value = self._query_nvidia_free()
+        self._vram_cache = (now, value)
+        return value
+
+    def _query_nvidia_free(self) -> int | None:
         exe = shutil.which("nvidia-smi")
         if not exe:
             return None
         try:
             out = subprocess.run([exe, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
-                                 capture_output=True, text=True, timeout=5, check=False).stdout
+                                 capture_output=True, text=True, timeout=5, check=False, **hidden()).stdout
             free = [int(line.strip()) for line in out.splitlines() if line.strip()]
             return free[0] * 1024 * 1024 if free else None
         except (OSError, ValueError, subprocess.SubprocessError):

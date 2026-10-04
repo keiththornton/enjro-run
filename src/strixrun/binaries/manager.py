@@ -13,6 +13,8 @@ from pathlib import Path
 
 import httpx
 
+from strixrun.winproc import hidden
+
 MANIFEST_PATH = Path(__file__).with_name("manifest.json")
 URL_PREFIX = "https://github.com/ggml-org/llama.cpp/releases/download/"
 CUDA13_MIN_DRIVER = (580, 0)
@@ -82,13 +84,20 @@ class PlatformProbe:
     def platform(self) -> tuple[str, str]:
         return platform.system(), platform.machine()
 
+    _driver: tuple | None = None
+
     def nvidia_driver_version(self) -> tuple[int, int] | None:
+        if PlatformProbe._driver is None:
+            PlatformProbe._driver = (self._query_driver(),)
+        return PlatformProbe._driver[0]
+
+    def _query_driver(self) -> tuple[int, int] | None:
         exe = shutil.which("nvidia-smi")
         if not exe:
             return None
         try:
             out = subprocess.run([exe, "--query-gpu=driver_version", "--format=csv,noheader"],
-                                 capture_output=True, text=True, timeout=5, check=False).stdout
+                                 capture_output=True, text=True, timeout=5, check=False, **hidden()).stdout
         except (OSError, subprocess.SubprocessError):
             return None
         m = re.match(r"\s*(\d+)\.(\d+)", out)
@@ -302,7 +311,7 @@ class BinaryManager:
     def _smoke_test(self, exe: Path) -> None:
         try:
             r = subprocess.run([str(exe), "--version"], capture_output=True, text=True,
-                               timeout=SMOKE_TIMEOUT_S, check=False)
+                               timeout=SMOKE_TIMEOUT_S, check=False, **hidden())
         except (OSError, subprocess.TimeoutExpired) as e:
             raise BinaryError(f"llama-server did not run: {e}") from e
         output = (r.stdout + r.stderr).lower()

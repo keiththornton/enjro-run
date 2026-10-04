@@ -8,6 +8,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from strixrun import paths
+from strixrun.winproc import hidden
 
 LABEL = "com.strixrun.serve"
 TASK_NAME = "StrixRun"
@@ -105,7 +106,7 @@ def windows_task_command(cmd: list[str], env: dict[str, str]) -> list[str]:
 
 
 def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    r = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    r = subprocess.run(cmd, capture_output=True, text=True, check=False, **hidden())
     if check and r.returncode != 0:
         raise ServiceError(f"{' '.join(cmd[:3])} failed: {(r.stderr or r.stdout).strip()}")
     return r

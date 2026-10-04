@@ -59,7 +59,8 @@ def main(argv: list[str]) -> int:
     if first.strip() != b"go":
         return 0
 
-    kwargs: dict = {}
+    # llama-server is a console program; without this it opens a window on Windows.
+    kwargs: dict = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
     if sys.platform.startswith("linux"):
         kwargs["preexec_fn"] = _linux_pdeathsig
     try:
