@@ -191,3 +191,23 @@ async def test_dashboard_cache_headers(home, tmp_path, monkeypatch):
         asset = await c.get("/assets/index-abc123.js")
     assert shell.text == "<html>shell</html>" and shell.headers["cache-control"] == "no-cache"
     assert "immutable" in asset.headers["cache-control"]
+
+
+async def test_second_instance_refuses_without_touching_the_first(home):
+    from strixrun.instance import AlreadyRunning
+
+    first = app()
+    async with serve_app(first):
+        await load(first, CHAT_ID)
+        child_pid = first.state.ctx.backend.state(CHAT_ID).pid
+        second = app()
+        with pytest.raises(AlreadyRunning, match="already running"):
+            async with second.router.lifespan_context(second):
+                pass
+        # the first instance's model survived: no orphan reaping, no restore, no state rewrite
+        assert first.state.ctx.backend.state(CHAT_ID).status is ModelStatus.READY
+        assert first.state.ctx.backend.state(CHAT_ID).pid == child_pid
+        assert json.loads(paths.state_path().read_text())["loaded"] == [CHAT_ID]
+    # once the first stops, a new instance starts normally
+    async with serve_app(app()):
+        pass

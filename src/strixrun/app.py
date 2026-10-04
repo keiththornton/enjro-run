@@ -28,6 +28,7 @@ from strixrun.binaries.manager import BinaryError, BinaryManager
 from strixrun.context import AppContext
 from strixrun.downloads import Downloads
 from strixrun.events import EventBus
+from strixrun.instance import InstanceLock
 from strixrun.memory import MemoryEstimator
 from strixrun.metrics import Metrics
 from strixrun.presets import PresetError, PresetStore
@@ -186,6 +187,18 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Before anything with side effects: a second server on the same data folder
+        # would reap the first one's children and overwrite its restore list.
+        lock = InstanceLock(paths.run_dir() / "server.lock")
+        lock.acquire()
+        try:
+            async with _running(app):
+                yield
+        finally:
+            lock.release()
+
+    @asynccontextmanager
+    async def _running(app: FastAPI):
         killed = procutil.reap_orphans(paths.pid_dir())
         if killed:
             log.warning("stopped %d llama-server process(es) left over from a previous run", len(killed))

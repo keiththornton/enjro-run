@@ -1,6 +1,7 @@
 """strixrun command line."""
 
 import logging
+import os
 import sys
 from typing import Annotated
 
@@ -32,6 +33,20 @@ def version() -> None:
     typer.echo(__version__)
 
 
+def _port_free(host: str, port: int) -> bool:
+    import socket
+
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as s:
+        if os.name != "nt":
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # match uvicorn: ignore TIME_WAIT
+        try:
+            s.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
 @app.command()
 def serve(
     port: Annotated[int | None, typer.Option(help="Port to listen on (default: from config, 8790).")] = None,
@@ -58,6 +73,18 @@ def serve(
     except SettingsError as e:
         _fail(str(e))
         return
+    from strixrun import paths
+    from strixrun.instance import AlreadyRunning, InstanceLock
+
+    probe = InstanceLock(paths.run_dir() / "server.lock")
+    try:
+        probe.acquire()  # the lifespan takes it for real; this gives a clean message instead of a traceback
+    except AlreadyRunning as e:
+        _fail(str(e))
+    probe.release()
+    if not _port_free(settings.host, settings.port):
+        _fail(f"port {settings.port} is already in use (another StrixRun, or another program). "
+              f"Stop it, or use --port.")
     shown = "127.0.0.1" if is_loopback_host(settings.host) or settings.host in ("0.0.0.0", "::") else settings.host
     typer.echo(f"StrixRun {__version__} on http://{shown}:{settings.port}  (OpenAI API at /v1)")
     if not is_loopback_host(settings.host):

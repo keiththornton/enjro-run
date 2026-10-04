@@ -119,3 +119,26 @@ async def test_needs_key(seeded, monkeypatch):
         monkeypatch.setenv("STRIXRUN_URL", url)
         r = await cli("ps")
     assert r.exit_code == 1 and "STRIXRUN_API_KEY" in r.output
+
+
+def test_serve_refuses_busy_port():
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen()
+        port = s.getsockname()[1]
+        r = runner.invoke(app, ["serve", "--port", str(port)])
+    assert r.exit_code == 1 and f"port {port} is already in use" in r.output
+
+
+def test_serve_refuses_when_already_running_on_this_folder():
+    from strixrun.instance import InstanceLock
+
+    lock = InstanceLock(paths.run_dir() / "server.lock")
+    lock.acquire()
+    try:
+        r = runner.invoke(app, ["serve", "--port", "1"])
+    finally:
+        lock.release()
+    assert r.exit_code == 1 and "already running" in r.output and str(__import__("os").getpid()) in r.output
