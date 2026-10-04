@@ -22,6 +22,31 @@ QUANT_RE = re.compile(
 )
 
 
+# Projector precisions in the order StrixRun prefers them. F16 runs everywhere; BF16 and
+# quantized projectors are smaller but not supported by every backend.
+PROJECTOR_PREFERENCE = ("F16", "BF16", "Q8_0", "F32")
+
+
+def is_projector(filename: str) -> bool:
+    """A multimodal projector (vision/audio encoder), shipped as mmproj*.gguf next to the model."""
+    name = Path(filename).name.lower()
+    return "mmproj" in name and name.endswith(".gguf")
+
+
+def pick_projector(filenames: list[str]) -> str | None:
+    """The preferred projector among `filenames`, or None if there isn't one."""
+    found = [f for f in filenames if is_projector(f)]
+    if not found:
+        return None
+
+    def rank(f: str) -> tuple[int, int, str]:
+        q = quant_of(f)
+        return (PROJECTOR_PREFERENCE.index(q) if q in PROJECTOR_PREFERENCE else len(PROJECTOR_PREFERENCE),
+                len(Path(f).name), f)
+
+    return min(found, key=rank)
+
+
 def quant_of(filename: str) -> str | None:
     matches = QUANT_RE.findall(Path(filename).name)
     return matches[-1].upper() if matches else None
@@ -87,6 +112,7 @@ class ModelEntry:
     quant: str | None = None
     meta: dict = field(default_factory=dict)
     added_at: float = field(default_factory=time.time)
+    mmproj: str | None = None  # multimodal projector GGUF; lets the model read images/audio
 
     @classmethod
     def from_download(
@@ -189,6 +215,39 @@ class Registry:
         self._models[model_id].meta = meta
         self._save()
 
+    def set_projector(self, model_id: str, path: str | None) -> ModelEntry:
+        entry = self._models.get(model_id)
+        if entry is None:
+            raise RegistryError(f"unknown model id {model_id!r}")
+        entry.mmproj = path
+        self._save()
+        return entry
+
+    def projector_users(self, path: str) -> list[str]:
+        """Ids of the models that use the projector at `path` (quants of one repo share it)."""
+        want = os.path.realpath(path)
+        return [m.id for m in self._models.values() if m.mmproj and os.path.realpath(m.mmproj) == want]
+
+    def attach_projectors(self) -> list[str]:
+        """Give models without a projector the one in their folder, if any. Returns changed ids.
+
+        Also forgets projectors whose file is gone.
+        """
+        changed = []
+        for m in self._models.values():
+            if m.mmproj and not os.path.isfile(m.mmproj):
+                m.mmproj = None
+                changed.append(m.id)
+            if m.mmproj or not m.paths:
+                continue
+            found = _folder_projector(Path(m.primary_path).parent)
+            if found:
+                m.mmproj = found
+                changed.append(m.id)
+        if changed:
+            self._save()
+        return changed
+
     def remove(self, model_id: str) -> ModelEntry | None:
         entry = self._models.pop(model_id, None)
         if entry is not None:
@@ -219,7 +278,7 @@ class Registry:
             if not d.is_dir():
                 continue
             for p in d.rglob("*.gguf"):
-                if p.name.lower().startswith("mmproj"):
+                if is_projector(p.name):
                     continue
                 files.append(str(p))
         added = []
@@ -242,5 +301,15 @@ class Registry:
                 stem = SHARD_RE.sub(r"\g<stem>", Path(first).name).removesuffix(".gguf")
                 entry = ModelEntry(id=f"local--{_slug(stem)}", aliases=[], paths=group,
                                    size_bytes=size, location=location, meta=meta)
+            entry.mmproj = _folder_projector(Path(first).parent)
             added.append(self.add(entry))
         return added
+
+
+def _folder_projector(folder: Path) -> str | None:
+    try:
+        names = [p.name for p in folder.iterdir() if p.is_file()]
+    except OSError:
+        return None
+    found = pick_projector(names)
+    return str(folder / found) if found else None

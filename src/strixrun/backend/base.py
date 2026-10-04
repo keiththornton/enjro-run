@@ -26,6 +26,9 @@ class ModelState:
     started_at: float | None = None
     ready_at: float | None = None
     gpu_layers: tuple[int, int] | None = None  # (on GPU, total) from llama.cpp's load log
+    # What the running server accepts besides text, from llama-server's /props:
+    # {"vision": bool, "audio": bool, "video": bool}. None until ready.
+    modalities: dict[str, bool] | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -37,7 +40,11 @@ class ModelState:
             "started_at": self.started_at,
             "ready_at": self.ready_at,
             "gpu_layers": list(self.gpu_layers) if self.gpu_layers else None,
+            "modalities": self.modalities,
         }
+
+    def accepts(self, modality: str) -> bool:
+        return bool(self.modalities and self.modalities.get(modality))
 
 
 @dataclass(frozen=True)

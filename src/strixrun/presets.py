@@ -57,6 +57,8 @@ class Preset:
     # One KV pool shared by all slots: a single conversation can use the whole context,
     # and memory is 1x the context instead of 1x per slot.
     kv_unified: bool = True
+    # Load the model's multimodal projector (images/audio) when it has one. Off saves memory.
+    projector: bool = True
     chat_template: str | None = None
     extra_args: list[str] = field(default_factory=list)
     sampling: dict = field(default_factory=dict)

@@ -38,6 +38,10 @@ CRASH_PATTERNS: list[tuple[str, re.Pattern, str]] = [
         r"out of memory|failed to allocate|unable to allocate|cudaMalloc failed|"
         r"insufficient memory|kIOGPUCommandBufferCallbackErrorOutOfMemory", re.IGNORECASE),
      "not enough memory; try a smaller context, fewer GPU layers or a smaller quant"),
+    ("projector_mismatch", re.compile(
+        r"failed to load multimodal model|mtmd_init_from_file: error", re.IGNORECASE),
+     ("the vision projector doesn't work with this model; turn off Vision projector in the load "
+      "settings, or remove the mmproj file from the model's folder")),
     ("unknown_architecture", re.compile(r"unknown model architecture", re.IGNORECASE),
      "this llama.cpp version doesn't support the model's architecture; update the binary"),
 ]
@@ -58,6 +62,24 @@ def classify_crash(lines: list[str], exit_code: int | None) -> tuple[str, str]:
     if bad:
         return "invalid_argument", f"llama-server rejected an argument: {bad.group(0).strip()[:160]}"
     return "generic", f"llama-server exited (code {exit_code}); see the model's logs"
+
+
+def _modalities(props: httpx.Response) -> dict[str, bool]:
+    try:
+        raw = props.json().get("modalities") or {}
+    except (ValueError, AttributeError):
+        return {}
+    return {k: bool(raw.get(k)) for k in ("vision", "audio", "video")}
+
+
+def projector_args(model: ModelEntry, preset: Preset) -> list[str]:
+    """--mmproj for models with a projector, unless the preset turns it off."""
+    if not (preset.projector and model.mmproj and os.path.isfile(model.mmproj)) or preset.mode != "chat":
+        return []
+    args = ["--mmproj", model.mmproj]
+    if preset.n_gpu_layers == 0:
+        args.append("--no-mmproj-offload")  # CPU only means CPU only
+    return args
 
 
 def _same_model(props: httpx.Response, want: str) -> bool:
@@ -231,8 +253,10 @@ class LocalProcessBackend:
             "--api-key", child.api_key,
             # Without an alias llama-server reports the GGUF's absolute path as the model name.
             "--alias", child.model.id,
+            *projector_args(child.model, child.preset),
             *llama_args(child.preset, self.templates_dir),
         ]
+        child.state.modalities = None
         child.proc = await procutil.spawn(child.cmd)
         child.state.pid, child.state.port, child.state.started_at = child.proc.pid, port, time.time()
         procutil.write_pidfile(self.pid_dir, child.model.id, child.proc.pid)
@@ -283,6 +307,7 @@ class LocalProcessBackend:
                     if (await client.get(f"{base}/health")).status_code == 200:
                         props = await client.get(f"{base}/props", headers=headers)
                         if props.status_code == 200 and _same_model(props, want):
+                            child.state.modalities = _modalities(props)
                             return True
                         child.logs.append(
                             f"strixrun: port {port} is answered by a different server; waiting"

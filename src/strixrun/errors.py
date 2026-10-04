@@ -29,6 +29,25 @@ class BadRequest(StrixError):
     status, type, code = 400, "invalid_request_error", "bad_request"
 
 
+class InvalidMedia(BadRequest):
+    code = "invalid_media"
+
+
+class ModalityNotSupported(BadRequest):
+    code = "modality_not_supported"
+
+    def __init__(self, model: str, modality: str) -> None:
+        what = {"vision": "images", "audio": "audio", "video": "video"}[modality]
+        super().__init__(
+            f"model {model!r} can't read {what}. Use a model with a vision/audio projector "
+            "(mmproj), or check that it's loaded with its projector turned on."
+        )
+
+
+class PayloadTooLarge(StrixError):
+    status, type, code = 413, "invalid_request_error", "request_too_large"
+
+
 class Unauthorized(StrixError):
     status, type, code = 401, "authentication_error", "invalid_api_key"
 

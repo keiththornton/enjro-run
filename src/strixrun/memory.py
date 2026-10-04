@@ -1,10 +1,12 @@
 """Memory estimate for loading a model with a preset, and what's available for it.
 
 estimate = weights (GGUF file sizes) + KV cache + compute buffers (heuristic).
-This is an estimate: it warns, it never blocks. Known gaps: recurrent/hybrid layers
-are costed as attention (overestimate) and vision projectors aren't counted.
+This is an estimate: it warns, it never blocks. Known gap: recurrent/hybrid layers
+are costed as attention (overestimate). A vision projector, when loaded, counts as
+weights plus a fixed encoder buffer.
 """
 
+import os
 import platform
 import shutil
 import subprocess
@@ -24,6 +26,17 @@ CACHE_BYTES = {
 }
 METAL_DEFAULT_FRACTION = 0.67
 TIGHT_FRACTION = 0.85
+PROJECTOR_COMPUTE = 256 * 1024 * 1024  # image encoder activations; varies by model and image size
+
+
+def projector_bytes(entry: ModelEntry, preset: Preset) -> int:
+    """Size of the projector the preset would load, or 0."""
+    if not (preset.projector and entry.mmproj) or preset.mode != "chat":
+        return 0
+    try:
+        return os.path.getsize(entry.mmproj)
+    except OSError:
+        return 0
 
 
 def _sysctl_int(name: str) -> int | None:
@@ -206,20 +219,23 @@ class MemoryEstimator:
                 if est["placement"] == "gpu" and est["verdict"] == "ok":
                     return {"fits": True, "preset": candidate.to_dict(), "estimate": est,
                             "message": f"Fits on the GPU with {ctx:,} tokens of context and a {cache} KV cache."}
-        weights = entry.size_bytes
+        weights = entry.size_bytes + projector_bytes(entry, preset)
         return {"fits": False, "preset": preset.to_dict(), "estimate": self.estimate(entry, preset),
                 "message": (f"The model's weights alone need {weights / 1e9:.1f} GB, more than this GPU can hold "
                             "with room to run. Pick a smaller quant to run it entirely on the GPU.")}
 
     def estimate(self, entry: ModelEntry, preset: Preset) -> dict:
         notes = []
-        weights = entry.size_bytes
+        projector = projector_bytes(entry, preset)
+        weights = entry.size_bytes + projector
         kv = self.kv_bytes(entry.meta, preset)
         if not kv:
             notes.append("model metadata incomplete: KV cache not included")
         if entry.meta.get("ssm_state_size") and hybrid_attention_layers(entry.meta) is None:
             notes.append("hybrid/recurrent model: KV cache likely overestimated")
-        compute = int(0.5 * GiB + 0.02 * weights)
+        compute = int(0.5 * GiB + 0.02 * weights) + (PROJECTOR_COMPUTE if projector else 0)
+        if projector:
+            notes.append(f"includes the vision projector ({projector / 1e9:.1f} GB)")
         total = weights + kv + compute
         placed = self.place(total, preset, entry.meta.get("n_layer"))
         return {
