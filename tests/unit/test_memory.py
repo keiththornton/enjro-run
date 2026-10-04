@@ -165,3 +165,71 @@ def test_hybrid_without_layout_still_flags_overestimate():
     meta = {**LLAMA3_8B, "ssm_state_size": 128}
     est = MemoryEstimator(FakeProbe()).estimate(entry(meta), Preset(parallel=1))
     assert any("overestimated" in n for n in est["notes"])
+
+
+# ---- NVIDIA hosts: llama.cpp fits layers into VRAM and runs the rest from RAM ------------
+
+RTX3090 = {"nvidia_free": int(23.5 * GiB), "available": 100 * GiB, "total": 128 * GiB}
+
+
+def test_3090_with_128gb_fits_a_7gb_model_on_the_gpu():
+    est = MemoryEstimator(FakeProbe(**RTX3090)).estimate(entry(LLAMA3_8B, size=7 * GiB), Preset())
+    assert est["verdict"] == "ok" and est["placement"] == "gpu" and est["limit"] == "vram"
+    assert est["spill_bytes"] == 0
+
+
+def test_too_big_for_vram_but_fits_with_ram_is_ok_split():
+    est = MemoryEstimator(FakeProbe(**RTX3090)).estimate(entry(LLAMA3_8B, size=40 * GiB), Preset())
+    assert est["verdict"] == "ok" and est["placement"] == "split"
+    assert est["spill_bytes"] > 15 * GiB
+    assert est["available_bytes"] == int(23.5 * GiB) + 100 * GiB
+    assert any("CPU" in n for n in est["notes"])
+
+
+def test_too_big_for_vram_and_ram_is_over():
+    est = MemoryEstimator(FakeProbe(**RTX3090)).estimate(entry(LLAMA3_8B, size=150 * GiB), Preset())
+    assert est["verdict"] == "over"
+
+
+def test_cpu_only_layers_compare_with_ram():
+    est = MemoryEstimator(FakeProbe(**RTX3090)).estimate(entry(LLAMA3_8B, size=7 * GiB), Preset(n_gpu_layers=0))
+    assert est["placement"] == "cpu" and est["limit"] == "ram" and est["verdict"] == "ok"
+
+
+def test_explicit_all_layers_must_fit_vram():
+    est = MemoryEstimator(FakeProbe(**RTX3090)).estimate(entry(LLAMA3_8B, size=40 * GiB), Preset(n_gpu_layers=99))
+    assert est["placement"] == "gpu" and est["verdict"] == "over"
+    assert any("auto" in n.lower() for n in est["notes"])
+
+
+def test_low_free_vram_is_explained():
+    probe = FakeProbe(nvidia_free=2 * GiB, available=100 * GiB, total=128 * GiB)
+    est = MemoryEstimator(probe).estimate(entry(LLAMA3_8B, size=7 * GiB), Preset())
+    assert est["placement"] == "split" and est["verdict"] == "ok"
+    assert est["vram_free_bytes"] == 2 * GiB
+
+
+def test_nvidia_free_sums_all_gpus(monkeypatch):
+    from types import SimpleNamespace
+
+    from strixrun import memory
+
+    monkeypatch.setattr(memory.shutil, "which", lambda name: "nvidia-smi")
+    out = "NVIDIA GeForce RTX 3090, 24576, 23000\nNVIDIA GeForce RTX 3060, 12288, 11000\n"
+    monkeypatch.setattr(memory.subprocess, "run", lambda *a, **kw: SimpleNamespace(stdout=out))
+    probe = memory.SystemProbe()
+    gpus = probe.gpus()
+    assert [g["name"] for g in gpus] == ["NVIDIA GeForce RTX 3090", "NVIDIA GeForce RTX 3060"]
+    assert gpus[0]["total_bytes"] == 24576 * 1024 * 1024
+    assert probe.nvidia_free_bytes() == (23000 + 11000) * 1024 * 1024
+
+
+def test_nvidia_unparseable_output_means_no_gpu(monkeypatch):
+    from types import SimpleNamespace
+
+    from strixrun import memory
+
+    monkeypatch.setattr(memory.shutil, "which", lambda name: "nvidia-smi")
+    monkeypatch.setattr(memory.subprocess, "run",
+                        lambda *a, **kw: SimpleNamespace(stdout="NVIDIA-SMI has failed because it couldn't communicate"))
+    assert memory.SystemProbe().nvidia_free_bytes() is None

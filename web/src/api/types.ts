@@ -46,7 +46,11 @@ export interface Estimate {
   kv_bytes: number;
   compute_bytes: number;
   available_bytes: number;
-  limit: "ram" | "metal" | "vram";
+  limit: "ram" | "metal" | "vram" | "vram+ram";
+  placement?: "gpu" | "split" | "cpu";
+  spill_bytes?: number;
+  vram_free_bytes?: number | null;
+  ram_available_bytes?: number;
   verdict: "ok" | "tight" | "over";
   notes: string[];
   ctx_per_request?: number;
@@ -171,4 +175,14 @@ export interface DiscoverRow {
   kind: "chat" | "vision-chat" | "embedding";
   params_b: number | null;
   fit_hint: "likely" | "tight" | "unlikely" | null;
+}
+
+export interface SystemInfo {
+  ram_total_bytes: number;
+  ram_available_bytes: number;
+  gpus: { name: string; total_bytes: number; free_bytes: number }[];
+  apple_silicon: boolean;
+  metal_limit_bytes: number | null;
+  default_limit: Estimate["limit"];
+  default_available_bytes: number;
 }

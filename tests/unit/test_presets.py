@@ -106,3 +106,22 @@ def test_from_dict_ignores_unknown_and_validates():
     assert p.ctx_per_request == 1024
     with pytest.raises(PresetError):
         Preset.from_dict({"parallel": 0})
+
+
+def test_gpu_layers_default_auto_lets_llama_cpp_fit(tmp_path):
+    p = Preset()
+    assert p.n_gpu_layers == -1
+    args = llama_args(p, tmp_path)
+    assert "-ngl" not in args  # unset: llama.cpp's --fit chooses how many layers go to the GPU
+    assert llama_args(Preset(n_gpu_layers=20), tmp_path)[llama_args(Preset(n_gpu_layers=20), tmp_path).index("-ngl") + 1] == "20"
+
+
+def test_legacy_999_preset_becomes_auto():
+    assert Preset.from_dict({"n_gpu_layers": 999}).n_gpu_layers == -1
+
+
+def test_gpu_layers_validation():
+    Preset(n_gpu_layers=-1).validate()
+    Preset(n_gpu_layers=0).validate()
+    with pytest.raises(PresetError):
+        Preset(n_gpu_layers=-2).validate()

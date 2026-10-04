@@ -123,10 +123,21 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
                   onChange={(e) => set("parallel", Math.max(1, Number(e.target.value) || 1))} />
                 )}
               </Field>
-              <Field label="GPU layers" hint="999 offloads every layer">
+              <Field label="GPU layers" hint={GPU_HINT[gpuMode(preset.n_gpu_layers)]}>
                 {(f) => (
-                <input {...f} className="text-field text-field-mono" type="number" min={0} max={999} value={preset.n_gpu_layers}
-                  onChange={(e) => set("n_gpu_layers", Math.max(0, Number(e.target.value) || 0))} />
+                <span className="gpu-layers">
+                  <select {...f} className="text-field" value={gpuMode(preset.n_gpu_layers)}
+                    onChange={(e) => set("n_gpu_layers", { auto: -1, all: 999, cpu: 0, custom: 20 }[e.target.value as GpuMode])}>
+                    <option value="auto">Auto (recommended)</option>
+                    <option value="all">All on GPU</option>
+                    <option value="cpu">CPU only</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                  {gpuMode(preset.n_gpu_layers) === "custom" && (
+                    <input className="text-field text-field-mono" type="number" min={1} max={998} aria-label="Number of GPU layers"
+                      value={preset.n_gpu_layers} onChange={(e) => set("n_gpu_layers", Math.min(998, Math.max(1, Number(e.target.value) || 1)))} />
+                  )}
+                </span>
                 )}
               </Field>
               <Field label="Flash attention">
@@ -203,17 +214,30 @@ function Segmented({ value, options, onChange, ...field }: FieldProps & {
   );
 }
 
-const LIMIT_LABEL = { ram: "available memory", metal: "the Metal GPU limit", vram: "free VRAM" } as const;
+type GpuMode = "auto" | "all" | "cpu" | "custom";
+const gpuMode = (n: number): GpuMode => (n === -1 ? "auto" : n === 0 ? "cpu" : n >= 999 ? "all" : "custom");
+const GPU_HINT: Record<GpuMode, string> = {
+  auto: "llama.cpp puts what fits on the GPU and runs the rest on the CPU",
+  all: "Every layer on the GPU; fails if it doesn't fit",
+  cpu: "No GPU: slowest, uses system RAM only",
+  custom: "This many layers on the GPU, the rest on the CPU",
+};
+
+const LIMIT_LABEL = {
+  ram: "available memory",
+  metal: "the Metal GPU limit",
+  vram: "free VRAM",
+  "vram+ram": "free VRAM plus available system RAM",
+} as const;
 
 export function EstimateView({ est }: { est: Estimate | null }) {
   if (!est) return <div className="estimate estimate-pending" aria-busy="true">Estimating memory…</div>;
   const total = Math.max(est.estimate_bytes, est.available_bytes, 1);
   const pct = (n: number) => `${(100 * n) / total}%`;
-  const headline = {
-    ok: "Fits",
-    tight: "Tight: loading may slow this machine down",
-    over: "Likely too large for this machine",
-  }[est.verdict];
+  const headline =
+    est.verdict === "ok"
+      ? est.placement === "split" ? "Fits, partly on the CPU (slower)" : est.placement === "gpu" && est.limit === "vram" ? "Fits on the GPU" : "Fits"
+      : est.verdict === "tight" ? "Tight: loading may slow this machine down" : "Likely too large for this machine";
   return (
     <div className={`estimate estimate-${est.verdict}`}>
       <div className="estimate-head">
@@ -236,7 +260,9 @@ export function EstimateView({ est }: { est: Estimate | null }) {
         <div><dt><i className="swatch swatch-limit" />available</dt><dd>{fmtBytes(est.available_bytes)}</dd></div>
       </dl>
       <p className="estimate-note">
-        Estimate against {LIMIT_LABEL[est.limit]}.{est.notes.length ? ` ${est.notes.join(". ")}.` : ""}
+        Estimate against {LIMIT_LABEL[est.limit]}
+        {est.vram_free_bytes != null && est.limit !== "vram" ? ` (${fmtBytes(est.vram_free_bytes)} VRAM free)` : ""}.
+        {est.notes.length ? ` ${est.notes.join(". ")}.` : ""}
       </p>
     </div>
   );

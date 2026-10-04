@@ -75,10 +75,8 @@ class Discover:
         if params_b is None or self.estimator is None:
             return None
         need = params_b * 1e9 * Q4_BYTES_PER_PARAM + OVERHEAD_BYTES
-        available, _ = self.estimator.available(Preset())
-        if need <= 0.85 * available:
-            return "likely"
-        return "tight" if need <= available else "unlikely"
+        verdict = self.estimator.place(int(need), Preset())["verdict"]
+        return {"ok": "likely", "tight": "tight", "over": "unlikely"}[verdict]
 
     async def list(self, sort: str, kind: str = "all", fits_only: bool = False, limit: int = 40) -> list[dict]:
         if sort not in FETCH:

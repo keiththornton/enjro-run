@@ -47,7 +47,7 @@ class PresetError(ValueError):
 @dataclass
 class Preset:
     ctx_per_request: int = DEFAULT_MAX_CTX
-    n_gpu_layers: int = 999
+    n_gpu_layers: int = -1  # -1 = auto: llama.cpp (--fit) puts what fits on the GPU, the rest on the CPU
     parallel: int = 2
     queue_max: int = 16
     flash_attn: str = "auto"
@@ -61,7 +61,10 @@ class Preset:
     @classmethod
     def from_dict(cls, data: dict) -> "Preset":
         known = {f.name for f in fields(cls)}
-        p = cls(**{k: v for k, v in data.items() if k in known})
+        data = {k: v for k, v in data.items() if k in known}
+        if data.get("n_gpu_layers") == 999:
+            data["n_gpu_layers"] = -1  # older StrixRun's "all layers" default; auto now does better
+        p = cls(**data)
         p.validate()
         return p
 
@@ -75,8 +78,8 @@ class Preset:
             raise PresetError("parallel must be between 1 and 64")
         if not 0 <= self.queue_max <= 10_000:
             raise PresetError("queue_max must be between 0 and 10000")
-        if self.n_gpu_layers < 0:
-            raise PresetError("n_gpu_layers must be >= 0")
+        if self.n_gpu_layers < -1:
+            raise PresetError("n_gpu_layers must be -1 (auto), 0 (CPU only) or a layer count")
         if self.flash_attn not in {"on", "off", "auto"}:
             raise PresetError("flash_attn must be on, off or auto")
         if self.cache_type_k not in CACHE_TYPES or self.cache_type_v not in CACHE_TYPES:
@@ -131,12 +134,13 @@ def llama_args(preset: Preset, templates_dir: Path) -> list[str]:
     args = [
         "--jinja",
         "-c", str(preset.ctx_per_request * preset.parallel),
-        "-ngl", str(preset.n_gpu_layers),
         "--parallel", str(preset.parallel),
         "--flash-attn", preset.flash_attn,
         "-ctk", preset.cache_type_k,
         "-ctv", preset.cache_type_v,
     ]
+    if preset.n_gpu_layers >= 0:
+        args += ["-ngl", str(preset.n_gpu_layers)]  # unset (auto) lets llama.cpp's --fit decide
     if preset.mode == "embedding":
         args.append("--embeddings")
     if preset.chat_template:

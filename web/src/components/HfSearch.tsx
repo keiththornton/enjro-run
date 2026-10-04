@@ -6,6 +6,8 @@ import { cancelDownload, listDownloads, repoFiles, searchHf, startDownload } fro
 import type { DownloadJob, HfSearchResult, QuantRow, RepoListing } from "../api/types";
 
 const VERDICT = { ok: "fits", tight: "tight", over: "too large" } as const;
+const fitLabel = (fit: QuantRow["fit"]) =>
+  fit && fit.verdict === "ok" && fit.placement === "split" ? "fits, partly CPU" : fit ? VERDICT[fit.verdict] : "";
 
 /** Download jobs, kept live from the server's event stream. */
 export function useDownloadJobs(): Record<string, DownloadJob> {
@@ -164,7 +166,7 @@ function QuantRowView({ repo, q, job, downloaded }: { repo: string; q: QuantRow;
       <td>
         {q.fit ? (
           <span className={`fit fit-${q.fit.verdict}`} title={`${fmtBytes(q.fit.estimate_bytes)} needed of ${fmtBytes(q.fit.available_bytes)}`}>
-            {VERDICT[q.fit.verdict]}
+            {fitLabel(q.fit)}
           </span>
         ) : <span className="meta">—</span>}
       </td>

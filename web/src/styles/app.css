@@ -1452,3 +1452,13 @@ select.text-field {
 a.btn {
   text-decoration: none;
 }
+.gpu-layers {
+  display: flex;
+  gap: var(--s-8);
+}
+.gpu-layers select {
+  flex: 1;
+}
+.gpu-layers input {
+  width: 72px;
+}

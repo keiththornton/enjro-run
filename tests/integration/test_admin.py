@@ -226,3 +226,21 @@ async def test_discover_route_with_fake_hub(home):
         assert r.status_code == 200
         assert all(m["kind"] == "chat" for m in r.json()["data"])
         assert (await c.get("/admin/hf/discover", params={"sort": "bogus"})).status_code == 400
+
+
+async def test_system_info_reports_detected_memory(home):
+    from strixrun.memory import MemoryEstimator
+    from tests.unit.test_memory import FakeProbe
+
+    class Probe(FakeProbe):
+        def gpus(self):
+            return [{"name": "NVIDIA GeForce RTX 3090", "total_bytes": 24 * 1024**3, "free_bytes": 23 * 1024**3}]
+
+    a = app()
+    async with serve_app(a) as url, httpx.AsyncClient(base_url=url) as c:
+        a.state.ctx.estimator = MemoryEstimator(Probe(nvidia_free=23 * 1024**3, available=100 * 1024**3,
+                                                      total=128 * 1024**3))
+        info = (await c.get("/admin/system")).json()
+    assert info["gpus"][0]["name"] == "NVIDIA GeForce RTX 3090"
+    assert info["ram_total_bytes"] == 128 * 1024**3
+    assert info["default_limit"] == "vram"

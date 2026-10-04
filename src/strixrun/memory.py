@@ -57,30 +57,45 @@ class SystemProbe:
         value = _sysctl_int("iogpu.wired_limit_mb")
         return value if value and value > 0 else None
 
-    _vram_cache: tuple[float, int | None] | None = None
-    VRAM_CACHE_S = 5.0
+    _gpu_cache: tuple[float, list[dict]] | None = None
+    GPU_CACHE_S = 5.0
 
-    def nvidia_free_bytes(self) -> int | None:
+    def gpus(self) -> list[dict]:
+        """NVIDIA GPUs with total and free memory (cached briefly: one search estimates many quants)."""
         import time
 
         now = time.monotonic()
-        if self._vram_cache and now - self._vram_cache[0] < self.VRAM_CACHE_S:
-            return self._vram_cache[1]
-        value = self._query_nvidia_free()
-        self._vram_cache = (now, value)
+        if self._gpu_cache and now - self._gpu_cache[0] < self.GPU_CACHE_S:
+            return self._gpu_cache[1]
+        value = self._query_gpus()
+        self._gpu_cache = (now, value)
         return value
 
-    def _query_nvidia_free(self) -> int | None:
+    def nvidia_free_bytes(self) -> int | None:
+        """Free memory across all NVIDIA GPUs (llama.cpp splits layers over them), or None."""
+        gpus = self.gpus()
+        return sum(g["free_bytes"] for g in gpus) if gpus else None
+
+    def _query_gpus(self) -> list[dict]:
         exe = shutil.which("nvidia-smi")
         if not exe:
-            return None
+            return []
         try:
-            out = subprocess.run([exe, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            out = subprocess.run([exe, "--query-gpu=name,memory.total,memory.free", "--format=csv,noheader,nounits"],
                                  capture_output=True, text=True, timeout=5, check=False, **hidden()).stdout
-            free = [int(line.strip()) for line in out.splitlines() if line.strip()]
-            return free[0] * 1024 * 1024 if free else None
-        except (OSError, ValueError, subprocess.SubprocessError):
-            return None
+        except (OSError, subprocess.SubprocessError):
+            return []
+        gpus = []
+        for line in out.splitlines():
+            parts = line.rsplit(",", 2)
+            if len(parts) != 3:
+                continue
+            try:
+                total, free = int(parts[1].strip()), int(parts[2].strip())
+            except ValueError:
+                continue
+            gpus.append({"name": parts[0].strip(), "total_bytes": total * 1024 * 1024, "free_bytes": free * 1024 * 1024})
+        return gpus
 
 
 def hybrid_attention_layers(meta: dict) -> int | None:
@@ -123,16 +138,57 @@ class MemoryEstimator:
         return int(per_pos_layer * n_layer * n_ctx)
 
     def available(self, preset: Preset) -> tuple[int, str]:
+        """Memory a model loaded with `preset` can use, and which limit that is."""
+        placement = self.place(0, preset)
+        return placement["available_bytes"], placement["limit"]
+
+    def place(self, total: int, preset: Preset, n_layer: int | None = None) -> dict:
+        """Where llama.cpp will put `total` bytes, and whether that fits.
+
+        NVIDIA: with GPU layers on auto, llama.cpp's --fit puts as many layers as fit in
+        VRAM and runs the rest from system RAM on the CPU (slower), so capacity is VRAM
+        plus RAM. Apple silicon shares one pool, capped by the Metal working-set limit.
+        """
         ram = self.probe.available_ram()
-        if preset.n_gpu_layers > 0:
-            vram = self.probe.nvidia_free_bytes()
-            if vram is not None:
-                return vram, "vram"
-            if self.probe.is_apple_silicon():
-                limit_mb = self.probe.metal_wired_limit_mb()
-                limit = limit_mb * 1024 * 1024 if limit_mb else int(METAL_DEFAULT_FRACTION * self.probe.total_ram())
-                return min(ram, limit), "metal"
-        return ram, "ram"
+        ngl = preset.n_gpu_layers
+        vram = self.probe.nvidia_free_bytes() if ngl != 0 else None
+        notes: list[str] = []
+
+        def verdict(need: float, have: float) -> str:
+            if need <= TIGHT_FRACTION * have:
+                return "ok"
+            return "tight" if need <= have else "over"
+
+        if ngl != 0 and vram is None and self.probe.is_apple_silicon():
+            limit_mb = self.probe.metal_wired_limit_mb()
+            limit = limit_mb * 1024 * 1024 if limit_mb else int(METAL_DEFAULT_FRACTION * self.probe.total_ram())
+            have = min(ram, limit)
+            return {"placement": "gpu", "limit": "metal", "available_bytes": have, "spill_bytes": 0,
+                    "verdict": verdict(total, have), "notes": notes, "vram_free_bytes": None}
+        if vram is None:
+            return {"placement": "cpu", "limit": "ram", "available_bytes": ram, "spill_bytes": 0,
+                    "verdict": verdict(total, ram), "notes": notes, "vram_free_bytes": None}
+
+        gpu_room = TIGHT_FRACTION * vram
+        if ngl == -1 or (n_layer and ngl < n_layer):
+            if ngl == -1 and total <= gpu_room:
+                return {"placement": "gpu", "limit": "vram", "available_bytes": vram, "spill_bytes": 0,
+                        "verdict": "ok", "notes": notes, "vram_free_bytes": vram}
+            frac = 1.0 if ngl == -1 else min(1.0, ngl / n_layer)
+            on_gpu = min(total, gpu_room) if ngl == -1 else total * frac
+            spill = max(0, int(total - on_gpu))
+            notes.append(f"About {spill / 1e9:.1f} GB will run from system RAM on the CPU, which is slower")
+            have = vram + ram
+            v = verdict(total, have)
+            if ngl != -1 and on_gpu > vram:
+                v = "over"
+            return {"placement": "split", "limit": "vram+ram", "available_bytes": have, "spill_bytes": spill,
+                    "verdict": v, "notes": notes, "vram_free_bytes": vram}
+        v = verdict(total, vram)
+        if v != "ok":
+            notes.append("Set GPU layers to auto so llama.cpp can run what doesn't fit on the CPU")
+        return {"placement": "gpu", "limit": "vram", "available_bytes": vram, "spill_bytes": 0,
+                "verdict": v, "notes": notes, "vram_free_bytes": vram}
 
     def estimate(self, entry: ModelEntry, preset: Preset) -> dict:
         notes = []
@@ -144,21 +200,18 @@ class MemoryEstimator:
             notes.append("hybrid/recurrent model: KV cache likely overestimated")
         compute = int(0.5 * GiB + 0.02 * weights)
         total = weights + kv + compute
-        available, limit = self.available(preset)
-        if total <= TIGHT_FRACTION * available:
-            verdict = "ok"
-        elif total <= available:
-            verdict = "tight"
-        else:
-            verdict = "over"
+        placed = self.place(total, preset, entry.meta.get("n_layer"))
         return {
             "estimate_bytes": total,
             "weights_bytes": weights,
             "kv_bytes": kv,
             "compute_bytes": compute,
-            "available_bytes": available,
-            "limit": limit,
-            "verdict": verdict,
-            "notes": notes,
+            "available_bytes": placed["available_bytes"],
+            "limit": placed["limit"],
+            "placement": placed["placement"],
+            "spill_bytes": placed["spill_bytes"],
+            "vram_free_bytes": placed["vram_free_bytes"],
+            "ram_available_bytes": self.probe.available_ram(),
+            "verdict": placed["verdict"],
+            "notes": notes + placed["notes"],
         }
-

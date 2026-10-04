@@ -2,8 +2,8 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { type ApiError, subscribe } from "../api/client";
 import { fmtBytes } from "../api/format";
-import { apiKey, getBinary, getSettings, installBinary, rollbackBinary, setHfToken, updateSettings } from "../api/settings";
-import type { BinaryStatus, Settings } from "../api/types";
+import { apiKey, getBinary, getSettings, getSystem, installBinary, rollbackBinary, setHfToken, updateSettings } from "../api/settings";
+import type { BinaryStatus, Settings, SystemInfo } from "../api/types";
 
 export function SettingsPage() {
   const [s, setS] = useState<Settings | null>(null);
@@ -42,6 +42,7 @@ export function SettingsPage() {
         <FileOnly label="Model folder" value={s.models_dirs[0]} command="strixrun config set models_dirs <path>" />
         <FileOnly label="Also read models from" value={s.extra_scan_dirs.join(", ") || "none"} command="strixrun config set extra_scan_dirs <path>[,<path>]" />
       </Section>
+      <Machine />
       <Binary />
     </section>
   );
@@ -262,6 +263,46 @@ function Binary() {
         </div>
       )}
       {(error || b.last_error) && <p className="form-error" role="alert">{error ?? b.last_error}</p>}
+    </Section>
+  );
+}
+
+const LIMIT_TEXT = {
+  vram: "free VRAM first; what doesn't fit runs from system RAM on the CPU",
+  "vram+ram": "free VRAM plus system RAM",
+  metal: "the Metal GPU limit (shared memory)",
+  ram: "available system RAM (no NVIDIA GPU found)",
+} as const;
+
+function Machine() {
+  const [info, setInfo] = useState<SystemInfo | null>(null);
+  useEffect(() => {
+    getSystem().then(setInfo).catch(() => {});
+  }, []);
+  if (!info) return null;
+  return (
+    <Section title="This machine" note="What StrixRun detects. Memory estimates use these numbers.">
+      <Row label="System RAM">
+        <span className="mono settings-value">{fmtBytes(info.ram_available_bytes)} free of {fmtBytes(info.ram_total_bytes)}</span>
+      </Row>
+      {info.gpus.length === 0 && !info.apple_silicon && (
+        <Row label="GPU" hint="nvidia-smi wasn't found or didn't answer; models run on the CPU">
+          <span className="mono settings-value">none detected</span>
+        </Row>
+      )}
+      {info.gpus.map((g, i) => (
+        <Row key={i} label={g.name}>
+          <span className="mono settings-value">{fmtBytes(g.free_bytes)} free of {fmtBytes(g.total_bytes)}</span>
+        </Row>
+      ))}
+      {info.apple_silicon && info.metal_limit_bytes != null && (
+        <Row label="Apple GPU" hint="Shares system memory, up to the Metal working-set limit">
+          <span className="mono settings-value">{fmtBytes(info.metal_limit_bytes)} usable now</span>
+        </Row>
+      )}
+      <Row label="Estimates compare against">
+        <span className="settings-value">{LIMIT_TEXT[info.default_limit]}</span>
+      </Row>
     </Section>
   );
 }
