@@ -64,6 +64,11 @@ def serve(
         sys.stdout = sys.stderr = stream  # no console under launchd/pythonw
     logging.basicConfig(level=log_level.upper(), format="%(asctime)s %(levelname)s %(name)s: %(message)s",
                         stream=sys.stderr, force=True)
+    debug = log_level.lower() == "debug"
+    if not debug:
+        # Health polls and proxied calls would log a line every 250 ms; the Requests page
+        # is the request log.
+        logging.getLogger("httpx").setLevel(logging.WARNING)
     store = SettingsStore()
     try:
         settings = store.load()
@@ -95,6 +100,7 @@ def serve(
         port=settings.port,
         proxy_headers=False,  # auth trusts the socket peer, never X-Forwarded-For
         log_level=log_level,
+        access_log=debug,  # dashboard polling would flood the terminal; --log-level debug shows it
         timeout_graceful_shutdown=20,
     )
 
