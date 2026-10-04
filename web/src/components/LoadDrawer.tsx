@@ -6,7 +6,7 @@ import { fmtBytes, fmtCtx } from "../api/format";
 import { estimate, fitModel, loadModel } from "../api/models";
 import type { Estimate, ModelView, Preset } from "../api/types";
 
-const CTX_STEPS = [2048, 4096, 8192, 16384, 32768, 65536, 131072];
+const CTX_STEPS = [2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576];
 const CACHE_TYPES = [
   { value: "f16", label: "f16" },
   { value: "q8_0", label: "q8_0" },

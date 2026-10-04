@@ -1,6 +1,6 @@
 [project]
 name = "strixrun"
-version = "0.1.8"
+version = "0.1.9"
 description = "API-first local LLM server for llama.cpp models, with a light web dashboard."
 readme = "README.md"
 requires-python = ">=3.12"

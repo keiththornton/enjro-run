@@ -196,7 +196,7 @@ class MemoryEstimator:
 
         base = replace(preset, n_gpu_layers=-1)
         trained = entry.meta.get("context_length") or preset.ctx_per_request
-        steps = sorted({c for c in (preset.ctx_per_request, 131072, 65536, 32768, 16384, 8192, 4096, 2048)
+        steps = sorted({c for c in (preset.ctx_per_request, 1048576, 524288, 262144, 131072, 65536, 32768, 16384, 8192, 4096, 2048)
                         if c <= max(preset.ctx_per_request, 2048) and c <= max(trained, 2048)}, reverse=True)
         for ctx in steps:
             for cache in ("f16", "q8_0"):

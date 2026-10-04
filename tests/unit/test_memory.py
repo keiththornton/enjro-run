@@ -253,6 +253,13 @@ def test_fit_on_gpu_suggests_largest_context_that_keeps_every_layer_on_the_gpu()
     assert s["preset"]["cache_type_k"] in ("f16", "q8_0")
 
 
+def test_fit_on_gpu_tries_contexts_above_128k():
+    probe = FakeProbe(nvidia_free=200 * GiB, available=100 * GiB, total=256 * GiB)
+    meta = {**LLAMA3_8B, "context_length": 1048576}
+    s = MemoryEstimator(probe).fit_on_gpu(entry(meta, size=5 * GiB), Preset(ctx_per_request=1048576))
+    assert s["fits"] and 131072 < s["preset"]["ctx_per_request"] <= 1048576
+
+
 def test_fit_on_gpu_keeps_current_settings_when_they_already_fit():
     probe = FakeProbe(nvidia_free=24 * GiB, available=100 * GiB, total=128 * GiB)
     s = MemoryEstimator(probe).fit_on_gpu(entry(LLAMA3_8B, size=5 * GiB), Preset(ctx_per_request=8192))
