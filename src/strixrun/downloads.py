@@ -5,6 +5,7 @@ Downloads run one file at a time in a killable worker process (see hf_worker).
 
 import asyncio
 import json
+import logging
 import re
 import shutil
 import sys
@@ -20,6 +21,8 @@ from strixrun.events import EventBus
 from strixrun.gguf_meta import GGUFError, read_local_meta, read_remote_meta
 from strixrun.presets import default_preset
 from strixrun.registry import ModelEntry, Registry, group_shards, make_id, quant_of
+
+log = logging.getLogger(__name__)
 
 CACHE_TTL_S = 600
 DISK_HEADROOM = 1.05
@@ -249,6 +252,7 @@ class Downloads:
             dest = (target / filename).resolve()
             if store not in dest.parents or ".." in Path(filename).parts or Path(filename).is_absolute():
                 raise errors.BadRequest(f"refusing file path {filename!r} from {repo}")
+        await self._check_header(repo, files[0][0])
         total = sum(s for _, s in files)
         target.mkdir(parents=True, exist_ok=True)
         free = shutil.disk_usage(target).free
@@ -269,6 +273,21 @@ class Downloads:
         task.add_done_callback(self._tasks.discard)
         self._publish(job)
         return job
+
+    async def _check_header(self, repo: str, filename: str) -> None:
+        """Refuse uploads whose header isn't a GGUF before spending gigabytes on them.
+
+        Costs one small range request. If Hugging Face can't be reached for the check,
+        the download goes ahead and the file is checked again once it's on disk.
+        """
+        try:
+            await self.hub.remote_meta(repo, filename)
+        except GGUFError as e:
+            err = errors.StrixError(_damaged_message(filename, str(e)))
+            err.status, err.type, err.code = 422, "invalid_request_error", "damaged_gguf"
+            raise err from e
+        except Exception:  # best-effort pre-check; the on-disk check still runs
+            log.debug("header pre-check for %s/%s failed", repo, filename, exc_info=True)
 
     def cancel(self, job_id: str) -> Job:
         job = self.jobs.get(job_id)
@@ -311,7 +330,8 @@ class Downloads:
             job.status = "cancelled" if str(e) == "cancelled" else "error"
             job.error = None if job.status == "cancelled" else _friendly(str(e), job.repo)
         except (GGUFError, OSError) as e:
-            job.status, job.error = "error", f"downloaded file is not a usable GGUF: {e}"
+            job.status, job.error = "error", _damaged_message(job.files[0][0], str(e))
+            _remove_files(job.target_dir, [name for name, _ in job.files])
         finally:
             self._publish(job)
 
@@ -320,6 +340,19 @@ class Downloads:
             ev.set()
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
+
+
+def _damaged_message(filename: str, detail: str) -> str:
+    return (f"{Path(filename).name} on Hugging Face isn't a valid GGUF file ({detail}); the upload "
+            "looks damaged. Try another quant from this repo.")
+
+
+def _remove_files(target_dir: str, names: list[str]) -> None:
+    root = Path(target_dir).resolve()
+    for name in names:
+        path = (root / name).resolve()
+        if root in path.parents:
+            path.unlink(missing_ok=True)
 
 
 def _friendly(message: str, repo: str) -> str:

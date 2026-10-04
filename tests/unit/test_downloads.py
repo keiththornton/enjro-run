@@ -229,3 +229,61 @@ async def test_gated_and_rate_limit_errors(tmp_path):
     with pytest.raises(errors.StrixError) as e:
         await d.search("qwen")
     assert e.value.status == 429 and "token" in e.value.message
+
+
+# ---- damaged uploads ------------------------------------------------------------------
+
+
+class DamagedHub(FakeHub):
+    """Like FakeHub, but one file's header on 'Hugging Face' is not a GGUF."""
+
+    def __init__(self, files, damaged: str, unreachable: bool = False):
+        super().__init__(files)
+        self.damaged, self.unreachable = damaged, unreachable
+
+    async def remote_meta(self, repo, filename):
+        from strixrun.gguf_meta import GGUFError
+
+        if self.unreachable:
+            raise OSError("network down")
+        if filename == self.damaged:
+            raise GGUFError("not a GGUF file")
+        return META
+
+
+async def test_damaged_upload_is_refused_before_downloading(tmp_path):
+    fetched = []
+
+    async def fetch(*a, **kw):
+        fetched.append(a)
+        raise AssertionError("must not download")
+
+    d, _, _ = make(tmp_path, DamagedHub(FILES, damaged="model-Q8_0.gguf"), fetch=fetch)
+    with pytest.raises(errors.StrixError) as e:
+        await d.start("owner/Model-GGUF", "Q8_0")
+    assert e.value.status == 422 and e.value.code == "damaged_gguf"
+    assert "model-Q8_0.gguf" in e.value.message and "another quant" in e.value.message
+    assert not fetched and not d.jobs
+
+
+async def test_header_check_failure_to_connect_does_not_block(tmp_path):
+    d, _, _ = make(tmp_path, DamagedHub(FILES, damaged="", unreachable=True))
+    job = await d.start("owner/Model-GGUF", "Q4_K_M")
+    await asyncio.wait_for(asyncio.gather(*d._tasks), 10)
+    assert job.status == "done"
+
+
+async def test_bad_file_after_download_is_deleted_with_clear_error(tmp_path):
+    async def junk_fetch(repo, filename, local_dir, on_progress, cancel, fake_size=None):
+        dest = Path(local_dir) / filename
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"\0" * 4096)
+        return str(dest)
+
+    d, reg, _ = make(tmp_path, FakeHub(FILES), fetch=junk_fetch)
+    job = await d.start("owner/Model-GGUF", "Q4_K_M")
+    await asyncio.wait_for(asyncio.gather(*d._tasks), 10)
+    assert job.status == "error"
+    assert "isn't a valid GGUF" in job.error and "another quant" in job.error
+    assert not (Path(job.target_dir) / "model-Q4_K_M.gguf").exists()
+    assert reg.get(job.model_id) is None
