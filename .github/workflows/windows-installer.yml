@@ -131,5 +131,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME out\*.exe --title "StrixRun $env:GITHUB_REF_NAME" `
-            --notes "Windows: download StrixRun-Setup-$env:VERSION.exe and run it. No admin rights needed. The first install downloads Python and packages (about a minute)."
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME out\*.exe --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME out\*.exe --title "StrixRun $env:GITHUB_REF_NAME" `
+              --notes "Windows: download StrixRun-Setup-$env:VERSION.exe and run it. No admin rights needed. The first install downloads Python and packages (about a minute)."
+          }
