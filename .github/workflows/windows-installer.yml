@@ -19,6 +19,7 @@ env:
 jobs:
   installer:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,25 +62,35 @@ jobs:
 
       - name: Install, start, check, stop, uninstall
         shell: pwsh
+        timeout-minutes: 15
         run: |
           $setup = "out\StrixRun-Setup-$env:VERSION.exe"
           $app = "$env:LOCALAPPDATA\Programs\StrixRun"
-          Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath', '/LOG=install.log' -Wait
+          # Wait for one process only: Start-Process -Wait also waits for every child it
+          # spawned, and `strixrun open` deliberately leaves the server running.
+          function Run-AndWait($file, $argList, $seconds) {
+            $p = Start-Process $file -ArgumentList $argList -PassThru
+            if (-not $p.WaitForExit($seconds * 1000)) { throw "$file $argList did not finish within ${seconds}s" }
+            return $p.ExitCode
+          }
+          $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath', '/LOG=install.log') 600
+          Write-Host "installer exit code $code"
           if (-not (Test-Path "$app\bin\strixrun.exe")) { Get-Content install.log -Tail 40; throw "strixrun.exe missing" }
           if (-not (Test-Path "$app\tools\strixrun\Scripts\pythonw.exe")) { throw "pythonw.exe missing (Start Menu shortcuts need it)" }
           $path = (Get-ItemProperty HKCU:\Environment).Path
           if ($path -notlike "*$app\bin*") { throw "PATH not updated: $path" }
           & "$app\bin\strixrun.exe" version
           # Start it the way the Start Menu shortcut does: no console window.
-          Start-Process "$app\tools\strixrun\Scripts\pythonw.exe" -ArgumentList '-m', 'strixrun', 'open', '--no-browser' -Wait
+          $code = Run-AndWait "$app\tools\strixrun\Scripts\pythonw.exe" @('-m', 'strixrun', 'open', '--no-browser') 120
+          if ($code -ne 0) { Get-Content "$env:USERPROFILE\.strix\run\logs\serve.log" -Tail 40; throw "strixrun open exited $code" }
           $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
           if ($models.object -ne "list") { throw "unexpected /v1/models: $models" }
           $page = Invoke-WebRequest http://127.0.0.1:8790/ -UseBasicParsing
           if ($page.Content -notlike "*<title>StrixRun</title>*") { throw "dashboard not served" }
           & "$app\bin\strixrun.exe" stop
           if ($LASTEXITCODE -ne 0) { throw "stop failed" }
-          Start-Process "$app\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
-          Start-Sleep -Seconds 3
+          $null = Run-AndWait "$app\unins000.exe" @('/VERYSILENT', '/SUPPRESSMSGBOXES') 300
+          Start-Sleep -Seconds 5  # the uninstaller hands off to a temp copy that deletes the folder
           if (Test-Path "$app\bin") { throw "uninstall left $app\bin behind" }
           $path = (Get-ItemProperty HKCU:\Environment).Path
           if ($path -like "*$app\bin*") { throw "uninstall left PATH entry" }
