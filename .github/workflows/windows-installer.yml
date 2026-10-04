@@ -42,6 +42,7 @@ jobs:
           New-Item -ItemType Directory staging | Out-Null
           Copy-Item "dist\$wheel" staging\
           Copy-Item installer\windows\strixrun.ico staging\
+          Copy-Item installer\windows\StrixRun.pyw staging\
           $zip = "uv.zip"
           Invoke-WebRequest "https://github.com/astral-sh/uv/releases/download/$env:UV_VERSION/uv-x86_64-pc-windows-msvc.zip" -OutFile $zip
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
@@ -85,12 +86,24 @@ jobs:
           if ($path -notlike "*$app\bin*") { throw "PATH not updated: $path" }
           & "$app\bin\strixrun.exe" version
           # Start it the way the Start Menu shortcut does: no console window.
-          $code = Run-AndWait "$app\tools\strixrun\Scripts\pythonw.exe" @('-m', 'strixrun', 'open', '--no-browser') 120
+          $code = Run-AndWait "$app\tools\strixrun\Scripts\pythonw.exe" @("$app\StrixRun.pyw", 'open', '--no-browser') 120
           if ($code -ne 0) { Get-Content "$env:USERPROFILE\.strix\run\logs\serve.log" -Tail 40; throw "strixrun open exited $code" }
           $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
           if ($models.object -ne "list") { throw "unexpected /v1/models: $models" }
           $page = Invoke-WebRequest http://127.0.0.1:8790/ -UseBasicParsing
           if ($page.Content -notlike "*<title>StrixRun</title>*") { throw "dashboard not served" }
+          # Upgrade while StrixRun is running (the usual case): install again over it.
+          $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath,startup', '/LOG=upgrade.log') 600
+          Write-Host "upgrade installer exit code $code"
+          Select-String -Path upgrade.log -Pattern "Stopping a running|strixrun stop exited|closed leftover" | ForEach-Object { $_.Line }
+          # Click the shortcut again and check StrixRun starts on the upgraded install.
+          $code = Run-AndWait "$app\tools\strixrun\Scripts\pythonw.exe" @("$app\StrixRun.pyw", 'open', '--no-browser') 120
+          if ($code -ne 0 -or (Test-Path "$app\launch-error.log")) {
+            if (Test-Path "$app\launch-error.log") { Get-Content "$app\launch-error.log" }
+            throw "StrixRun does not start after an upgrade"
+          }
+          $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
+          if ($models.object -ne "list") { throw "API not answering after an upgrade" }
           & "$app\bin\strixrun.exe" stop
           if ($LASTEXITCODE -ne 0) { throw "stop failed" }
           $null = Run-AndWait "$app\unins000.exe" @('/VERYSILENT', '/SUPPRESSMSGBOXES') 300

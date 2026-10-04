@@ -53,18 +53,19 @@ Name: "addtopath"; Description: "Add the strixrun command to PATH"
 Source: "{#SourceDir}\uv.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\{#Wheel}"; DestDir: "{app}\wheel"; Flags: ignoreversion
 Source: "{#SourceDir}\strixrun.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\StrixRun.pyw"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; pythonw: no console window. `strixrun open` starts the server if needed and opens the dashboard.
-Name: "{group}\StrixRun"; Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: "-m strixrun open"; \
+Name: "{group}\StrixRun"; Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: """{app}\StrixRun.pyw"" open"; \
   WorkingDir: "{app}"; IconFilename: "{app}\strixrun.ico"; Comment: "Start StrixRun and open the dashboard"
-Name: "{group}\Stop StrixRun"; Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: "-m strixrun stop"; \
+Name: "{group}\Stop StrixRun"; Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: """{app}\StrixRun.pyw"" stop"; \
   WorkingDir: "{app}"; IconFilename: "{app}\strixrun.ico"; Comment: "Stop the StrixRun server"
 
 [Run]
 ; Installing Python and StrixRun (and the optional sign-in task) happens in [Code] at
 ; ssPostInstall, so failures are logged, retried once and explained.
-Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: "-m strixrun open"; \
+Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: """{app}\StrixRun.pyw"" open"; \
   Description: "Start StrixRun and open the dashboard"; Flags: postinstall nowait skipifsilent; Check: InstallSucceeded
 
 [UninstallRun]
@@ -186,6 +187,27 @@ begin
   if First < 0 then First := 0;
   for I := First to GetArrayLength(All) - 1 do
     Result := Result + All[I] + #13#10;
+end;
+
+{ Upgrading over a running StrixRun: its Python files are in use, so uv can't replace
+  them and the install is left half-replaced. Stop it (and anything else running from
+  the install folder) before touching files. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Code: Integer; Exe, Ps: string;
+begin
+  Result := '';
+  Exe := ExpandConstant('{app}\bin\strixrun.exe');
+  if FileExists(Exe) then
+  begin
+    Log('Stopping a running StrixRun before upgrading');
+    Exec(Exe, 'stop', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Log(Format('strixrun stop exited with %d', [Code]));
+  end;
+  Ps := '-NoProfile -NonInteractive -Command "$d = ''' + ExpandConstant('{app}') + '''; ' +
+        'Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | ' +
+        'Stop-Process -Force -ErrorAction SilentlyContinue"';
+  Exec('powershell.exe', Ps, '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Log(Format('closed leftover StrixRun processes (powershell exit %d)', [Code]));
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
