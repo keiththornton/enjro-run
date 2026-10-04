@@ -128,7 +128,7 @@ def test_quant_of(name, quant):
 
 
 async def test_listing_groups_quants_merges_shards_and_badges(tmp_path):
-    d, _, _ = make(tmp_path, FakeHub(FILES), available=8 * GiB)
+    d, _, _ = make(tmp_path, FakeHub(FILES), available=7 * GiB)
     listing = await d.repo_listing("owner/Model-GGUF")
     by = {q["quant"]: q for q in listing["quants"]}
     assert set(by) == {"Q4_K_M", "Q8_0", "F16"}  # mmproj and README excluded

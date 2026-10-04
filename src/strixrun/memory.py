@@ -120,7 +120,7 @@ class MemoryEstimator:
         if not all((n_layer, n_head_kv, dk, dv)):
             return 0
         per_pos_layer = n_head_kv * (dk * CACHE_BYTES[preset.cache_type_k] + dv * CACHE_BYTES[preset.cache_type_v])
-        n_ctx = preset.ctx_per_request * preset.parallel
+        n_ctx = preset.ctx_per_request * (1 if preset.kv_unified else preset.parallel)
         attn_layers = hybrid_attention_layers(meta)
         if attn_layers is not None:
             # Hybrid: only attention layers keep a KV cache; recurrent layers hold a small
@@ -189,6 +189,27 @@ class MemoryEstimator:
             notes.append("Set GPU layers to auto so llama.cpp can run what doesn't fit on the CPU")
         return {"placement": "gpu", "limit": "vram", "available_bytes": vram, "spill_bytes": 0,
                 "verdict": v, "notes": notes, "vram_free_bytes": vram}
+
+    def fit_on_gpu(self, entry: ModelEntry, preset: Preset) -> dict:
+        """The largest context (f16 or q8_0 KV cache) that keeps every layer on the GPU."""
+        from dataclasses import replace
+
+        base = replace(preset, n_gpu_layers=-1)
+        trained = entry.meta.get("context_length") or preset.ctx_per_request
+        steps = sorted({c for c in (preset.ctx_per_request, 131072, 65536, 32768, 16384, 8192, 4096, 2048)
+                        if c <= max(preset.ctx_per_request, 2048) and c <= max(trained, 2048)}, reverse=True)
+        for ctx in steps:
+            for cache in ("f16", "q8_0"):
+                fa = base.flash_attn if cache == "f16" or base.flash_attn != "off" else "auto"
+                candidate = replace(base, ctx_per_request=ctx, cache_type_k=cache, cache_type_v=cache, flash_attn=fa)
+                est = self.estimate(entry, candidate)
+                if est["placement"] == "gpu" and est["verdict"] == "ok":
+                    return {"fits": True, "preset": candidate.to_dict(), "estimate": est,
+                            "message": f"Fits on the GPU with {ctx:,} tokens of context and a {cache} KV cache."}
+        weights = entry.size_bytes
+        return {"fits": False, "preset": preset.to_dict(), "estimate": self.estimate(entry, preset),
+                "message": (f"The model's weights alone need {weights / 1e9:.1f} GB, more than this GPU can hold "
+                            "with room to run. Pick a smaller quant to run it entirely on the GPU.")}
 
     def estimate(self, entry: ModelEntry, preset: Preset) -> dict:
         notes = []

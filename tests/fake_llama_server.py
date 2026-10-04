@@ -263,6 +263,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.stderr.write(STARTUP_ERRORS[err].format(port=args.port) + "\n")
         sys.stderr.flush()
         sys.exit(1)
+    sys.stderr.write(f"load_tensors: offloaded {os.environ.get('FAKE_GPU_LAYERS', '29/29')} layers to GPU\n")
     sys.stderr.write(f"main: server is listening on http://{args.host}:{args.port}\n")
     sys.stderr.flush()
     uvicorn.run(build_app(args), host=args.host, port=args.port, log_level="warning")

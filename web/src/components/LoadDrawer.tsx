@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError } from "../api/client";
 import { fmtBytes, fmtCtx } from "../api/format";
-import { estimate, loadModel } from "../api/models";
+import { estimate, fitModel, loadModel } from "../api/models";
 import type { Estimate, ModelView, Preset } from "../api/types";
 
 const CTX_STEPS = [2048, 4096, 8192, 16384, 32768, 65536, 131072];
@@ -76,6 +76,22 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
   }, [submitted, status]);
 
   const needsConfirm = est && est.verdict !== "ok";
+  const [fitNote, setFitNote] = useState<string | null>(null);
+
+  async function fitOnGpu() {
+    setError(null);
+    try {
+      const r = await fitModel(model.id, body);
+      setFitNote(r.message);
+      if (r.fits) {
+        setPreset((p) => ({ ...p, n_gpu_layers: r.preset.n_gpu_layers, ctx_per_request: r.preset.ctx_per_request,
+                           cache_type_k: r.preset.cache_type_k, cache_type_v: r.preset.cache_type_v,
+                           flash_attn: r.preset.flash_attn }));
+      }
+    } catch (e) {
+      setError((e as ApiError).message);
+    }
+  }
   const busy = submitted && (status === "loading" || status === "stopping");
 
   async function submit() {
@@ -117,7 +133,7 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
                 </select>
                 )}
               </Field>
-              <Field label="Parallel requests" hint="Slots served at once; each gets the full context">
+              <Field label="Parallel requests" hint="Served at once; they share one context, so this doesn't add memory">
                 {(f) => (
                 <input {...f} className="text-field text-field-mono" type="number" min={1} max={16} value={preset.parallel}
                   onChange={(e) => set("parallel", Math.max(1, Number(e.target.value) || 1))} />
@@ -168,6 +184,14 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
               </Field>
             </div>
             <EstimateView est={est} />
+            {est?.placement === "split" && (
+              <div className="fit-banner" role="status">
+                <p>Part of this model would run on the CPU, which slows every reply, even in a new conversation.
+                  Fit on GPU finds the most context that keeps every layer on the GPU.</p>
+                <button type="button" className="btn btn-sm btn-secondary pressable" onClick={fitOnGpu}>Fit on GPU</button>
+              </div>
+            )}
+            {fitNote && <p className="field-hint fit-note">{fitNote}</p>}
           </>
         )}
         {error && <p className="form-error" role="alert">{error}</p>}

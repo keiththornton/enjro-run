@@ -82,7 +82,8 @@ async def test_command_line_uses_preset(backend):
     await backend.load(m, Preset(ctx_per_request=1024, parallel=3, extra_args=["--threads", "2"]))
     await backend.wait_settled(m.id)
     cmd = backend.command(m.id)
-    assert cmd[cmd.index("-c") + 1] == "3072"
+    assert cmd[cmd.index("-c") + 1] == "1024"  # one KV pool shared by the 3 slots
+    assert "--kv-unified" in cmd
     assert cmd[cmd.index("-m") + 1] == m.primary_path
     assert cmd[cmd.index("--host") + 1] == "127.0.0.1"
     assert "--api-key" in cmd and cmd[-2:] == ["--threads", "2"]
@@ -187,3 +188,14 @@ def test_classify_crash_invalid_argument():
 def test_classify_crash_windows_dll_exit_code():
     assert classify_crash([], 3221225781)[0] == "missing_cuda_runtime"
     assert classify_crash(["something odd"], 1)[0] == "generic"
+
+
+async def test_layer_placement_is_read_from_the_load_log(backend, monkeypatch):
+    m = model()
+    await backend.load(m, Preset())
+    assert (await backend.wait_settled(m.id)).gpu_layers == (29, 29)
+    await backend.unload(m.id)
+    monkeypatch.setenv("FAKE_GPU_LAYERS", "20/29")
+    await backend.load(m, Preset())
+    state = await backend.wait_settled(m.id)
+    assert state.gpu_layers == (20, 29) and state.to_dict()["gpu_layers"] == [20, 29]

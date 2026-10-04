@@ -1462,3 +1462,20 @@ a.btn {
 .gpu-layers input {
   width: 72px;
 }
+.fit-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-12);
+  margin-top: var(--s-10);
+  padding: var(--s-10) var(--s-12);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--raised);
+  font-size: var(--fs-12);
+  line-height: var(--lh-12-code);
+  color: var(--secondary);
+}
+.fit-note {
+  margin-top: var(--s-8);
+}

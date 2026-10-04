@@ -88,6 +88,14 @@ def estimate_model(model_id: str, body: EstimateIn, ctx: Ctx):
             "ctx_per_request": preset.ctx_per_request, "parallel": preset.parallel}
 
 
+@router.post("/models/{model_id}/fit")
+def fit_model(model_id: str, body: EstimateIn, ctx: Ctx):
+    """Settings that keep every layer on the GPU: the largest context, f16 or q8_0 KV cache."""
+    entry = _entry(ctx, model_id)
+    current = ctx.presets.load(entry.id, entry.meta).to_dict()
+    return ctx.estimator.fit_on_gpu(entry, Preset.from_dict({**current, **(body.preset or {})}))
+
+
 class LoadIn(BaseModel):
     preset: dict | None = None
     confirm: bool = False
@@ -174,5 +182,6 @@ def ps(ctx: Ctx):
             "ctx_per_request": preset.ctx_per_request if preset else None,
             "parallel": preset.parallel if preset else None,
             "queue_depth": ctx.proxy.queue_depth(model_id),
+            "gpu_layers": list(state.gpu_layers) if state.gpu_layers else None,
         })
     return {"data": out, "pid": os.getpid()}

@@ -164,7 +164,12 @@ Useful settings:
   - Lower the context per request or the parallel slots, or pick a smaller quant.
   - On Apple silicon, the GPU can only use about two-thirds of RAM by default, and the estimate accounts for that.
   - It's an estimate: StrixRun warns, and you can still choose **Load anyway**.
-- **Requests fail with a context error:** the context per request is the full window *each* parallel slot gets. Raise it in the load sheet. Memory use grows with context × slots.
+- **Replies are slow, even in a new conversation (NVIDIA):** part of the model is running on the CPU.
+  - Check the model's strip: `GPU 20/33 · rest on CPU` means 13 layers didn't fit in VRAM, and every token waits on them.
+  - In the load sheet, **Fit on GPU** picks the largest context that keeps every layer on the GPU, using an 8-bit (q8_0) KV cache if that buys more room.
+  - Otherwise lower the context or pick a smaller quant.
+  - Parallel requests share one context (llama.cpp's unified KV cache), so raising them doesn't cost memory.
+- **Requests fail with a context error:** raise the context per request in the load sheet. Parallel requests share it, so several long conversations at once can fill it sooner.
 - **A gated model won't download:** accept its license on huggingface.co, then add a Hugging Face token in Settings.
 - **Hugging Face rate limits:** add a token in Settings, or retry in a few minutes.
 - **A model shows "Needs attention":** it crashed. The reason is on the strip, and the load sheet shows llama-server's output. Typical causes are out of memory, an architecture this llama.cpp build doesn't support (update the build in Settings), or a rejected extra argument.

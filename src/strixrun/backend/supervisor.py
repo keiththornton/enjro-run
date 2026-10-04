@@ -24,6 +24,7 @@ from strixrun.registry import ModelEntry
 log = logging.getLogger(__name__)
 
 LOG_LINES = 500
+OFFLOADED_RE = re.compile(r"offloaded (\d+)/(\d+) layers to GPU")
 HEALTH_INTERVAL_S = 0.25
 PORT_ATTEMPTS = 3
 WINDOWS_DLL_NOT_FOUND = (0xC0000135, -1073741515)
@@ -297,6 +298,9 @@ class LocalProcessBackend:
                 return
             line = raw.decode("utf-8", "replace").rstrip()
             child.logs.append(line)
+            placed = OFFLOADED_RE.search(line)
+            if placed:
+                child.state.gpu_layers = (int(placed[1]), int(placed[2]))
             self.bus.publish("model.log", {"id": child.model.id, "line": line})
 
     async def _stop(self, child: _Child, persist: bool = True) -> None:

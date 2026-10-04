@@ -54,6 +54,9 @@ class Preset:
     cache_type_k: str = "f16"
     cache_type_v: str = "f16"
     mode: str = "chat"
+    # One KV pool shared by all slots: a single conversation can use the whole context,
+    # and memory is 1x the context instead of 1x per slot.
+    kv_unified: bool = True
     chat_template: str | None = None
     extra_args: list[str] = field(default_factory=list)
     sampling: dict = field(default_factory=dict)
@@ -133,7 +136,9 @@ def llama_args(preset: Preset, templates_dir: Path) -> list[str]:
     preset.validate()
     args = [
         "--jinja",
-        "-c", str(preset.ctx_per_request * preset.parallel),
+        "-c", str(preset.ctx_per_request if preset.kv_unified else preset.ctx_per_request * preset.parallel),
+        "--kv-unified" if preset.kv_unified else "--no-kv-unified",
+        "-lv", "4",  # log layer placement ("offloaded X/Y layers to GPU") and --fit's decisions
         "--parallel", str(preset.parallel),
         "--flash-attn", preset.flash_attn,
         "-ctk", preset.cache_type_k,

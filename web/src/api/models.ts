@@ -1,10 +1,12 @@
 import { api } from "./client";
-import type { Estimate, ModelView, Preset, PsEntry } from "./types";
+import type { Estimate, FitResult, ModelView, Preset, PsEntry } from "./types";
 
 export const listModels = () => api<{ data: ModelView[] }>("/admin/models").then((r) => r.data);
 export const listPs = () => api<{ data: PsEntry[] }>("/admin/ps").then((r) => r.data);
 export const estimate = (id: string, preset: Partial<Preset>) =>
   api<Estimate>(`/admin/models/${encodeURIComponent(id)}/estimate`, { method: "POST", body: { preset } });
+export const fitModel = (id: string, preset: Partial<Preset>) =>
+  api<FitResult>(`/admin/models/${encodeURIComponent(id)}/fit`, { method: "POST", body: { preset } });
 export const loadModel = (id: string, preset: Partial<Preset>, confirm: boolean) =>
   api<ModelView>(`/admin/models/${encodeURIComponent(id)}/load`, { method: "POST", body: { preset, confirm } });
 export const unloadModel = (id: string) =>

@@ -145,8 +145,13 @@ function ModelStrip({ model, ps, onLoad, onChanged }: { model: ModelView; ps?: P
     }
   }
 
+  const layers = model.state.gpu_layers;
+  const partial = layers && layers[0] < layers[1];
   const facts = live && ps
-    ? [`ctx ${fmtCtx(ps.ctx_per_request ?? 0)} × ${ps.parallel}`, `queue ${ps.queue_depth}`,
+    ? [`ctx ${fmtCtx(ps.ctx_per_request ?? 0)} · ${ps.parallel} slots`,
+       layers ? <span className={partial ? "danger" : undefined} title={partial ? "Some layers run on the CPU, which slows every reply" : "Every layer is on the GPU"}>
+         GPU {layers[0]}/{layers[1]}{partial ? " · rest on CPU" : ""}</span> : null,
+       `queue ${ps.queue_depth}`,
        ps.uptime_s != null ? `up ${fmtDuration(ps.uptime_s)}` : null, ps.rss_bytes ? `${fmtBytes(ps.rss_bytes)} rss` : null]
     : [model.quant, model.meta.architecture, model.meta.parameters, model.meta.context_length ? `${fmtCtx(model.meta.context_length)} ctx` : null,
        model.preset.mode === "embedding" ? "embedding" : null];

@@ -10,6 +10,7 @@ export interface ModelState {
   port: number | null;
   started_at: number | null;
   ready_at: number | null;
+  gpu_layers?: [number, number] | null;
 }
 
 export interface Preset {
@@ -21,6 +22,7 @@ export interface Preset {
   cache_type_k: string;
   cache_type_v: string;
   mode: "chat" | "embedding";
+  kv_unified: boolean;
   chat_template: string | null;
   extra_args: string[];
   sampling: Record<string, number>;
@@ -38,6 +40,13 @@ export interface ModelView {
   state: ModelState;
   preset: Preset;
   queue_depth: number;
+}
+
+export interface FitResult {
+  fits: boolean;
+  preset: Preset;
+  estimate: Estimate;
+  message: string;
 }
 
 export interface Estimate {
@@ -161,6 +170,7 @@ export interface PsEntry {
   ctx_per_request: number | null;
   parallel: number | null;
   queue_depth: number;
+  gpu_layers?: [number, number] | null;
 }
 
 export interface DiscoverRow {

@@ -49,8 +49,8 @@ def test_llama3_8b_kv_is_one_gib_at_8k_f16():
 
 def test_qwen_kv_scales_with_parallel():
     e = MemoryEstimator(FakeProbe())
-    one = e.estimate(entry(QWEN25_15B), Preset(ctx_per_request=8192, parallel=1))["kv_bytes"]
-    two = e.estimate(entry(QWEN25_15B), Preset(ctx_per_request=8192, parallel=2))["kv_bytes"]
+    one = e.estimate(entry(QWEN25_15B), Preset(ctx_per_request=8192, parallel=1, kv_unified=False))["kv_bytes"]
+    two = e.estimate(entry(QWEN25_15B), Preset(ctx_per_request=8192, parallel=2, kv_unified=False))["kv_bytes"]
     assert one == 28 * 8192 * 2 * (128 * 2 + 128 * 2) == 234_881_024
     assert two == 2 * one
 
@@ -146,7 +146,7 @@ QWEN35_9B = {"n_layer": 32, "n_head_kv": 4, "head_dim_k": 256, "head_dim_v": 256
 
 def test_hybrid_full_attention_interval_counts_only_attention_layers():
     e = MemoryEstimator(FakeProbe())
-    est = e.estimate(entry(QWEN35_9B, size=int(4.94e9)), Preset(ctx_per_request=8192, parallel=2))
+    est = e.estimate(entry(QWEN35_9B, size=int(4.94e9)), Preset(ctx_per_request=8192, parallel=2, kv_unified=False))
     attn_kv = 8 * 16384 * 4 * (256 * 2 + 256 * 2)  # 8 of 32 layers keep a KV cache
     recurrent = 24 * 2 * 4096 * 128 * 4            # small fixed state per recurrent layer and sequence
     assert est["kv_bytes"] == attn_kv + recurrent
@@ -233,3 +233,33 @@ def test_nvidia_unparseable_output_means_no_gpu(monkeypatch):
     monkeypatch.setattr(memory.subprocess, "run",
                         lambda *a, **kw: SimpleNamespace(stdout="NVIDIA-SMI has failed because it couldn't communicate"))
     assert memory.SystemProbe().nvidia_free_bytes() is None
+
+
+def test_unified_kv_counts_one_pool():
+    e = MemoryEstimator(FakeProbe())
+    unified = e.estimate(entry(LLAMA3_8B), Preset(ctx_per_request=8192, parallel=2))["kv_bytes"]
+    split = e.estimate(entry(LLAMA3_8B), Preset(ctx_per_request=8192, parallel=2, kv_unified=False))["kv_bytes"]
+    assert unified == 1 * GiB and split == 2 * GiB
+
+
+def test_fit_on_gpu_suggests_largest_context_that_keeps_every_layer_on_the_gpu():
+    probe = FakeProbe(nvidia_free=24 * GiB, available=100 * GiB, total=128 * GiB)
+    meta = {**LLAMA3_8B, "context_length": 131072}
+    s = MemoryEstimator(probe).fit_on_gpu(entry(meta, size=16 * GiB), Preset(ctx_per_request=65536))
+    assert s["fits"] and s["estimate"]["placement"] == "gpu" and s["estimate"]["verdict"] == "ok"
+    assert s["preset"]["n_gpu_layers"] == -1
+    assert 2048 <= s["preset"]["ctx_per_request"] < 65536
+    # q8_0 halves the KV cache, so it is chosen when it buys more context
+    assert s["preset"]["cache_type_k"] in ("f16", "q8_0")
+
+
+def test_fit_on_gpu_keeps_current_settings_when_they_already_fit():
+    probe = FakeProbe(nvidia_free=24 * GiB, available=100 * GiB, total=128 * GiB)
+    s = MemoryEstimator(probe).fit_on_gpu(entry(LLAMA3_8B, size=5 * GiB), Preset(ctx_per_request=8192))
+    assert s["fits"] and s["preset"]["ctx_per_request"] == 8192 and s["preset"]["cache_type_k"] == "f16"
+
+
+def test_fit_on_gpu_explains_when_weights_alone_are_too_big():
+    probe = FakeProbe(nvidia_free=24 * GiB, available=100 * GiB, total=128 * GiB)
+    s = MemoryEstimator(probe).fit_on_gpu(entry(LLAMA3_8B, size=40 * GiB), Preset())
+    assert not s["fits"] and "smaller quant" in s["message"]

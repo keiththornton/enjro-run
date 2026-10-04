@@ -14,7 +14,7 @@ def test_defaults_cap_context_and_detect_embedding():
 
 
 def test_llama_args_multiplies_context_by_parallel(tmp_path):
-    args = llama_args(Preset(ctx_per_request=8192, parallel=2), tmp_path)
+    args = llama_args(Preset(ctx_per_request=8192, parallel=2, kv_unified=False), tmp_path)
     assert args[args.index("-c") + 1] == "16384"
     assert args[args.index("--parallel") + 1] == "2"
     assert "--jinja" in args
@@ -125,3 +125,16 @@ def test_gpu_layers_validation():
     Preset(n_gpu_layers=0).validate()
     with pytest.raises(PresetError):
         Preset(n_gpu_layers=-2).validate()
+
+
+def test_unified_kv_by_default_uses_one_pool(tmp_path):
+    args = llama_args(Preset(ctx_per_request=8192, parallel=2), tmp_path)
+    assert args[args.index("-c") + 1] == "8192"  # shared by both slots, not 2 x 8192
+    assert "--kv-unified" in args
+    old = llama_args(Preset(ctx_per_request=8192, parallel=2, kv_unified=False), tmp_path)
+    assert old[old.index("-c") + 1] == "16384" and "--no-kv-unified" in old
+
+
+def test_llama_server_logs_layer_placement(tmp_path):
+    args = llama_args(Preset(), tmp_path)
+    assert args[args.index("-lv") + 1] == "4"  # shows 'offloaded X/Y layers to GPU'

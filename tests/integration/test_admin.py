@@ -244,3 +244,14 @@ async def test_system_info_reports_detected_memory(home):
     assert info["gpus"][0]["name"] == "NVIDIA GeForce RTX 3090"
     assert info["ram_total_bytes"] == 128 * 1024**3
     assert info["default_limit"] == "vram"
+
+
+async def test_fit_endpoint(home):
+    from strixrun.memory import MemoryEstimator
+    from tests.unit.test_memory import FakeProbe
+
+    a = app()
+    async with serve_app(a) as url, httpx.AsyncClient(base_url=url) as c:
+        a.state.ctx.estimator = MemoryEstimator(FakeProbe(nvidia_free=24 * 1024**3, available=100 * 1024**3))
+        r = (await c.post(f"/admin/models/{MID}/fit", json={"preset": {"ctx_per_request": 32768}})).json()
+    assert r["fits"] and r["estimate"]["placement"] == "gpu"
