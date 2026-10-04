@@ -12,6 +12,19 @@ It's a sister app to StrixCode and Strix Data, and shares their look.
 
 ## Install
 
+### Windows: installer
+
+Download **StrixRun-Setup-<version>.exe** from the repository's Releases page and run it.
+
+- **No admin rights needed.** It installs for your user only.
+- **No Python or Git needed.** The first install downloads a private copy of Python and StrixRun's packages, which takes about a minute.
+- **Start Menu:** **StrixRun** starts the server, with no console window, and opens the dashboard. **Stop StrixRun** stops it.
+- **Optional extras:** start StrixRun when you sign in, and add the `strixrun` command to PATH.
+- **Uninstalling:** use *Settings → Apps*. Your models and settings in `%USERPROFILE%\.strix` are kept; delete that folder to remove them too.
+- **SmartScreen:** the installer isn't code-signed, so Windows may say *"Windows protected your PC"*. Choose **More info → Run anyway**.
+
+### macOS, Linux, or Windows from the command line
+
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Building from source also needs Node 20+ for the dashboard.
 
 ```bash
@@ -104,6 +117,7 @@ strixrun config set trust_loopback false
 | Command | What it does |
 |---|---|
 | `strixrun serve [--port N]` | Run the server and dashboard |
+| `strixrun open` / `strixrun stop` | Start the server in the background if needed and open the dashboard / stop it |
 | `strixrun load <model> [--ctx N --parallel N --gpu-layers N --yes --no-wait]` | Load a model and wait until it's serving; exits non-zero with the reason if it fails |
 | `strixrun unload <model>` | Unload a model |
 | `strixrun ps` | Show loaded models: context, slots, queue, memory, uptime |
