@@ -36,3 +36,15 @@ def test_serve_command_logs_to_file(monkeypatch, tmp_path):
     monkeypatch.setenv("STRIX_HOME", str(tmp_path))
     cmd = service.serve_command()
     assert cmd[-3:] == ["serve", "--log-file", str(tmp_path / "run" / "logs" / "serve.log")]
+
+
+def test_windows_install_does_not_start_a_second_server_now(monkeypatch, tmp_path):
+    """The installer starts StrixRun itself; running the sign-in task too raced it."""
+    calls = []
+    monkeypatch.setenv("STRIX_HOME", str(tmp_path))
+    monkeypatch.setattr(service, "_platform", lambda: "windows")
+    monkeypatch.setattr(service, "_run", lambda cmd, check=True: calls.append(cmd))
+    monkeypatch.setattr(service, "serve_command", lambda: [r"C:\Py\pythonw.exe", "-m", "strixrun", "serve"])
+    service.install()
+    assert calls and calls[0][:2] == ["schtasks", "/Create"]
+    assert not any(c[:2] == ["schtasks", "/Run"] for c in calls)

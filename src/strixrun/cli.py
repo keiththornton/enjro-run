@@ -443,9 +443,41 @@ def stop(
     deadline = time.monotonic() + timeout
     while _answering(url):
         if time.monotonic() > deadline:
+            if _end_server_process():
+                break
             _fail(f"StrixRun is still running after {timeout:g}s")
         time.sleep(0.3)
     typer.echo("Stopped StrixRun.")
+
+
+def _end_server_process() -> bool:
+    """Fallback for a server that ignores the shutdown request: end the process that holds
+    the instance lock, and everything it started. True once nothing answers any more."""
+    import time
+
+    import psutil
+
+    from strixrun import paths
+
+    try:
+        pid = int((paths.run_dir() / "server.lock").read_text().strip())
+        proc = psutil.Process(pid)
+    except (OSError, ValueError, psutil.Error):
+        return False
+    procs = [*proc.children(recursive=True), proc]
+    for p in procs:
+        try:
+            p.kill()
+        except psutil.Error:
+            pass
+    psutil.wait_procs(procs, timeout=10)
+    typer.echo(f"StrixRun didn't stop on request; ended process {pid}.")
+    url = _local_url()
+    for _ in range(30):
+        if not _answering(url):
+            return True
+        time.sleep(0.3)
+    return False
 
 
 def main() -> None:

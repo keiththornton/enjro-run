@@ -105,7 +105,11 @@ jobs:
           $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
           if ($models.object -ne "list") { throw "API not answering after an upgrade" }
           & "$app\bin\strixrun.exe" stop
-          if ($LASTEXITCODE -ne 0) { throw "stop failed" }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "--- serve.log"; Get-Content "$env:USERPROFILE\.strix\run\logs\serve.log" -Tail 40 -ErrorAction SilentlyContinue
+            Write-Host "--- processes"; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*strixrun*" } | Select-Object ProcessId, ParentProcessId, CommandLine | Format-List
+            throw "stop failed"
+          }
           $null = Run-AndWait "$app\unins000.exe" @('/VERYSILENT', '/SUPPRESSMSGBOXES') 300
           Start-Sleep -Seconds 5  # the uninstaller hands off to a temp copy that deletes the folder
           if (Test-Path "$app\bin") { throw "uninstall left $app\bin behind" }

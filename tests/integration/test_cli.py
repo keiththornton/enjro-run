@@ -194,3 +194,30 @@ def test_open_starts_server_and_stop_stops_it(tmp_path, monkeypatch):
     else:
         raise AssertionError("server still answering after stop")
     assert "isn't running" in runner.invoke(app, ["stop"]).output
+
+
+def test_stop_falls_back_to_ending_the_process(monkeypatch):
+    """If the server ignores the shutdown request, stop ends it via the PID in the lock file."""
+    import socket
+    import time
+
+    import httpx
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    runner.invoke(app, ["config", "set", "port", str(port)])
+    assert runner.invoke(app, ["open", "--no-browser"]).exit_code == 0
+    try:
+        real_post = httpx.post
+        monkeypatch.setattr(httpx, "post", lambda url, **kw: httpx.Response(202, json={"stopping": True},
+                                                                            request=httpx.Request("POST", url)))
+        r = runner.invoke(app, ["stop", "--timeout", "2"])
+        assert r.exit_code == 0, r.output
+        assert "Stopped StrixRun" in r.output and "ended" in r.output
+        with pytest.raises(httpx.TransportError):
+            httpx.get(f"http://127.0.0.1:{port}/v1/models", timeout=1)
+    finally:
+        monkeypatch.setattr(httpx, "post", real_post)
+        runner.invoke(app, ["stop"])
+        time.sleep(0.5)

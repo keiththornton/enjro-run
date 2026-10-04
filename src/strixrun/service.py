@@ -120,10 +120,14 @@ def systemd_unit_path() -> Path:
     return Path.home() / ".config" / "systemd" / "user" / UNIT_NAME
 
 
+def _platform() -> str:
+    return "darwin" if sys.platform == "darwin" else "windows" if os.name == "nt" else "linux"
+
+
 def install() -> str:
     cmd, env, log = serve_command(), service_env(), log_path()
     log.parent.mkdir(parents=True, exist_ok=True)
-    if sys.platform == "darwin":
+    if _platform() == "darwin":
         plist = launchd_plist_path()
         plist.parent.mkdir(parents=True, exist_ok=True)
         domain = f"gui/{os.getuid()}"
@@ -131,10 +135,12 @@ def install() -> str:
         plist.write_text(render_launchd(cmd, env, log))
         _run(["launchctl", "bootstrap", domain, str(plist)])
         return f"Installed launchd agent {LABEL}; StrixRun starts at login (log: {log})."
-    if os.name == "nt":
+    if _platform() == "windows":
+        # Not started now: the installer (or `strixrun open`) starts StrixRun itself, and
+        # running the task as well raced it with a second server.
         _run(windows_task_command(cmd, env))
-        _run(["schtasks", "/Run", "/TN", TASK_NAME], check=False)
-        return f"Installed Task Scheduler task {TASK_NAME}; StrixRun starts at logon (log: {log})."
+        return (f"Installed Task Scheduler task {TASK_NAME}; StrixRun starts when you sign in "
+                f"(log: {log}). Run `strixrun open` to start it now.")
     unit = systemd_unit_path()
     unit.parent.mkdir(parents=True, exist_ok=True)
     unit.write_text(render_systemd(cmd, env))
@@ -144,11 +150,11 @@ def install() -> str:
 
 
 def uninstall() -> str:
-    if sys.platform == "darwin":
+    if _platform() == "darwin":
         _run(["launchctl", "bootout", f"gui/{os.getuid()}/{LABEL}"], check=False)
         launchd_plist_path().unlink(missing_ok=True)
         return "Removed the launchd agent; StrixRun no longer starts at login."
-    if os.name == "nt":
+    if _platform() == "windows":
         _run(["schtasks", "/End", "/TN", TASK_NAME], check=False)
         _run(["schtasks", "/Delete", "/TN", TASK_NAME, "/F"], check=False)
         return "Removed the Task Scheduler task."
