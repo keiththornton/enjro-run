@@ -42,7 +42,25 @@ def main() -> None:
         meta={"architecture": "llama", "context_length": 8192, "n_layer": 16, "n_head": 16,
               "n_head_kv": 4, "head_dim_k": 64, "head_dim_v": 64},
     ))
-    app = create_app(store, binary=lambda: [sys.executable, FAKE], load_timeout=30)
+    class OfflineHub:
+        """Stand-in for Hugging Face so UI tests never depend on live data."""
+
+        def list_gguf(self, sort, limit):
+            return [
+                {"repo": "bartowski/Llama-3.2-3B-Instruct-GGUF", "downloads": 912_000, "likes": 140,
+                 "trending_score": 40, "pipeline_tag": "text-generation", "created_at": "2026-09-30T00:00:00+00:00",
+                 "last_modified": None, "gated": False},
+                {"repo": "unsloth/Qwen3.8-27B-GGUF", "downloads": 6_300_000, "likes": 4800, "trending_score": 120,
+                 "pipeline_tag": None, "created_at": "2026-08-13T00:00:00+00:00", "last_modified": None, "gated": False},
+            ]
+
+        def search(self, query, limit):
+            return []
+
+        def repo_files(self, repo):
+            return {"gated": False, "files": []}
+
+    app = create_app(store, binary=lambda: [sys.executable, FAKE], load_timeout=30, hub=OfflineHub())
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
 
 

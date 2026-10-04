@@ -14,6 +14,12 @@ async def hf_search(ctx: Ctx, q: str, limit: int = 30):
     return {"data": await ctx.downloads.search(q, min(max(limit, 1), 100))}
 
 
+@router.get("/hf/discover")
+async def hf_discover(ctx: Ctx, sort: str = "trending", kind: str = "all", fits_only: bool = False,
+                      limit: int = 40):
+    return {"data": await ctx.discover.list(sort, kind=kind, fits_only=fits_only, limit=min(max(limit, 1), 100))}
+
+
 @router.get("/hf/repo/{owner}/{repo}/files")
 async def hf_repo_files(owner: str, repo: str, ctx: Ctx):
     return await ctx.downloads.repo_listing(f"{owner}/{repo}")

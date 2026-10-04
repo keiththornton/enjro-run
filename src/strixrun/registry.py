@@ -195,6 +195,21 @@ class Registry:
             self._save()
         return entry
 
+    def refresh_stale_meta(self, required_key: str = "n_attn_layers") -> list[str]:
+        """Re-read headers for entries parsed before `required_key` existed. Returns refreshed ids."""
+        refreshed = []
+        for m in list(self._models.values()):
+            if required_key in m.meta or not m.paths:
+                continue
+            try:
+                m.meta = read_local_meta(Path(m.primary_path))
+            except (GGUFError, OSError):
+                continue
+            refreshed.append(m.id)
+        if refreshed:
+            self._save()
+        return refreshed
+
     def scan(self, dirs: list[Path], location: str) -> list[ModelEntry]:
         """Register GGUF files found in `dirs` that aren't known yet. Returns the new entries."""
         known_paths = {os.path.realpath(p) for m in self._models.values() for p in m.paths}

@@ -22,4 +22,5 @@ class AppContext:
     downloads: Any = None
     binaries: Any = None
     metrics: Any = None
+    discover: Any = None
     estimator: Any = None  # MemoryEstimator; None until wired (load skips the check)

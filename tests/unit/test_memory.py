@@ -138,3 +138,30 @@ def test_non_macos_available_is_psutil(monkeypatch):
     monkeypatch.setattr(memory.psutil, "virtual_memory",
                         lambda: SimpleNamespace(total=16 * GiB, available=3 * GiB))
     assert memory.SystemProbe().available_ram() == 3 * GiB
+
+
+QWEN35_9B = {"n_layer": 32, "n_head_kv": 4, "head_dim_k": 256, "head_dim_v": 256, "context_length": 262144,
+             "ssm_state_size": 128, "ssm_inner_size": 4096, "full_attention_interval": 4}
+
+
+def test_hybrid_full_attention_interval_counts_only_attention_layers():
+    e = MemoryEstimator(FakeProbe())
+    est = e.estimate(entry(QWEN35_9B, size=int(4.94e9)), Preset(ctx_per_request=8192, parallel=2))
+    attn_kv = 8 * 16384 * 4 * (256 * 2 + 256 * 2)  # 8 of 32 layers keep a KV cache
+    recurrent = 24 * 2 * 4096 * 128 * 4            # small fixed state per recurrent layer and sequence
+    assert est["kv_bytes"] == attn_kv + recurrent
+    assert est["kv_bytes"] < 0.7e9
+    assert not any("overestimated" in n for n in est["notes"])
+
+
+def test_hybrid_per_layer_kv_heads_list():
+    meta = {"n_layer": 4, "n_head_kv": 8, "n_attn_layers": 1, "head_dim_k": 128, "head_dim_v": 128,
+            "ssm_state_size": 16, "ssm_inner_size": 1024}
+    est = MemoryEstimator(FakeProbe()).estimate(entry(meta), Preset(ctx_per_request=1024, parallel=1))
+    assert est["kv_bytes"] == 1 * 1024 * 8 * (128 * 2 + 128 * 2) + 3 * 1 * 1024 * 16 * 4
+
+
+def test_hybrid_without_layout_still_flags_overestimate():
+    meta = {**LLAMA3_8B, "ssm_state_size": 128}
+    est = MemoryEstimator(FakeProbe()).estimate(entry(meta), Preset(parallel=1))
+    assert any("overestimated" in n for n in est["notes"])

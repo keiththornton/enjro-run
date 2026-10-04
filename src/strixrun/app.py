@@ -26,7 +26,8 @@ from strixrun.backend import procutil
 from strixrun.backend.supervisor import LocalProcessBackend
 from strixrun.binaries.manager import BinaryError, BinaryManager
 from strixrun.context import AppContext
-from strixrun.downloads import Downloads
+from strixrun.discover import Discover
+from strixrun.downloads import Downloads, HubClient
 from strixrun.events import EventBus
 from strixrun.instance import InstanceLock
 from strixrun.memory import MemoryEstimator
@@ -85,7 +86,7 @@ def _session_secret() -> bytes:
 
 
 def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] | None,
-                  load_timeout: float) -> AppContext:
+                  load_timeout: float, hub=None) -> AppContext:
     bus = EventBus()
 
     def current() -> Settings:
@@ -104,6 +105,7 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
     )
     proxy = Proxy(registry, backend, bus, idle_timeout=lambda: current().upstream_idle_timeout_s)
     estimator = MemoryEstimator()
+    hub = hub or HubClient()
     return AppContext(
         bus=bus,
         settings=store,
@@ -114,7 +116,8 @@ def build_context(store: SettingsStore, binary: Callable[[], list[str] | None] |
         binaries=binaries,
         metrics=Metrics(bus, backend, proxy),
         estimator=estimator,
-        downloads=Downloads(bus, registry, lambda: Path(current().models_dirs[0]), estimator=estimator),
+        downloads=Downloads(bus, registry, lambda: Path(current().models_dirs[0]), estimator=estimator, hub=hub),
+        discover=Discover(hub, estimator),
         requestlog=RequestLog(
             paths.db_path(), bus,
             ring_size=lambda: current().log_body_ring_size,
@@ -127,6 +130,7 @@ def rescan(ctx: AppContext) -> None:
     s = ctx.settings.current
     ctx.registry.scan([Path(d) for d in s.models_dirs], location="store")
     ctx.registry.scan([Path(d) for d in s.extra_scan_dirs], location="scan")
+    ctx.registry.refresh_stale_meta()
 
 
 async def restore_loaded(ctx: AppContext) -> list[str]:
@@ -179,6 +183,7 @@ def create_app(
     store: SettingsStore | None = None,
     binary: Callable[[], list[str] | None] | None = None,
     load_timeout: float = 300.0,
+    hub=None,
 ) -> FastAPI:
     store = store or SettingsStore()
     if store.current is None:
@@ -202,7 +207,7 @@ def create_app(
         killed = procutil.reap_orphans(paths.pid_dir())
         if killed:
             log.warning("stopped %d llama-server process(es) left over from a previous run", len(killed))
-        ctx = build_context(store, binary, load_timeout)
+        ctx = build_context(store, binary, load_timeout, hub)
         app.state.ctx = ctx
         installer = None
         if binary is None and ctx.binaries.command() is None and not store.current.binary_path:

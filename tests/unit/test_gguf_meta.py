@@ -136,3 +136,26 @@ async def test_remote_real_hf_file():
     assert m["architecture"] == "qwen2"
     assert m["n_layer"] == 24 and m["n_head_kv"] == 2
     assert transferred < 2_000_000
+
+
+def test_hybrid_layout_keys(tmp_path):
+    import gguf
+
+    p = tmp_path / "h.gguf"
+    w = gguf.GGUFWriter(str(p), "qwen35")
+    w.add_block_count(32)
+    w.add_embedding_length(4096)
+    w.add_head_count(16)
+    w.add_head_count_kv(4)
+    w.add_uint32("qwen35.full_attention_interval", 4)
+    w.add_uint32("qwen35.ssm.state_size", 128)
+    w.add_uint32("qwen35.ssm.inner_size", 4096)
+    w.add_tensor("t", __import__("numpy").zeros((2, 2), dtype="float32"))
+    w.write_header_to_file(); w.write_kv_data_to_file(); w.write_tensors_to_file(); w.close()
+    m = read_local_meta(p)
+    assert (m["full_attention_interval"], m["ssm_inner_size"], m["n_attn_layers"]) == (4, 4096, None)
+
+
+def test_per_layer_kv_heads_counts_attention_layers(tmp_path):
+    m = read_local_meta(write_gguf(tmp_path / "a.gguf", head_count_kv=[0, 8, 0, 0], block_count=4))
+    assert m["n_attn_layers"] == 1 and m["n_head_kv"] == 8

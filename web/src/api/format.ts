@@ -34,3 +34,23 @@ export function fmtRate(n: number | null | undefined): string {
 export function fmtTime(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
+
+export function fmtCount(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}k`;
+  return String(n);
+}
+
+export function fmtAge(iso: string | null): string {
+  if (!iso) return "—";
+  const days = (Date.now() - new Date(iso).getTime()) / 86400000;
+  if (days < 1) return "today";
+  if (days < 30) return `${Math.floor(days)}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
+
+export function fmtParams(b: number | null): string | null {
+  if (b == null) return null;
+  return b < 1 ? `${Math.round(b * 1000)}M` : `${Number.isInteger(b) ? b : b.toFixed(1)}B`;
+}

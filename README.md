@@ -29,7 +29,7 @@ strixrun serve
 On first start StrixRun downloads its pinned llama.cpp build (about 12 MB on a Mac; about 650 MB on Windows with CUDA, including the CUDA runtime). Then:
 
 1. Open **http://127.0.0.1:8790**.
-2. Choose **Find on Hugging Face**, search (e.g. `qwen2.5 instruct`), expand a repo and download a quant marked **fits**.
+2. Choose **Find on Hugging Face** and search (e.g. `qwen2.5 instruct`), or browse **Discover** for trending, most downloaded, most liked and new GGUF models (only ones StrixRun can run; large ones are hidden by default). Expand a repo and download a quant marked **fits**.
 3. Choose **Load**, check the memory estimate, and choose **Load** again.
 4. Try it in the **Playground**, or call the API:
 
@@ -42,6 +42,8 @@ curl http://127.0.0.1:8790/v1/chat/completions \
 The `model` field is the model's **alias**, shown on the Models page and listed by `GET /v1/models`. `GET /v1/models?all=1` also lists downloaded models that aren't loaded.
 
 ## Use it from your tools
+
+The dashboard's **API** page shows this server's real base URL, its loaded model names and key status, copy-ready code (curl, Python, JavaScript: chat, streaming, tool calls, JSON output, embeddings), setup for Open WebUI, Continue, LangChain and `llm`, plus the endpoint and error reference. The essentials:
 
 **OpenAI Python SDK**
 

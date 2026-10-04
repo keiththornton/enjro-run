@@ -158,3 +158,17 @@ export interface PsEntry {
   parallel: number | null;
   queue_depth: number;
 }
+
+export interface DiscoverRow {
+  repo: string;
+  downloads: number;
+  likes: number;
+  trending_score: number;
+  pipeline_tag: string | null;
+  created_at: string | null;
+  last_modified: string | null;
+  gated: boolean;
+  kind: "chat" | "vision-chat" | "embedding";
+  params_b: number | null;
+  fit_hint: "likely" | "tight" | "unlikely" | null;
+}

@@ -129,7 +129,10 @@ def summarize(kv: dict) -> dict:
 
     n_embd = a("embedding_length")
     n_head = _max(a("attention.head_count"))
-    n_head_kv = _max(a("attention.head_count_kv")) or n_head
+    kv_heads = a("attention.head_count_kv")
+    n_head_kv = _max(kv_heads) or n_head
+    # Hybrid models list KV heads per layer, with 0 for recurrent (no-KV-cache) layers.
+    n_attn_layers = sum(1 for h in kv_heads if h) if isinstance(kv_heads, list) else None
     default_head_dim = n_embd // n_head if n_embd and n_head else None
     pooling = a("pooling_type")
     stopped = kv.get("__stopped__", False)
@@ -148,6 +151,9 @@ def summarize(kv: dict) -> dict:
         "sliding_window": a("attention.sliding_window"),
         "sliding_window_pattern": a("attention.sliding_window_pattern"),
         "ssm_state_size": a("ssm.state_size"),
+        "ssm_inner_size": a("ssm.inner_size"),
+        "full_attention_interval": a("full_attention_interval"),
+        "n_attn_layers": n_attn_layers,
         "embedding_only": arch in EMBEDDING_ARCHS or bool(pooling),
         "has_chat_template": None if stopped else bool(kv.get("tokenizer.chat_template")),
         "split_count": kv.get("split.count"),

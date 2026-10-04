@@ -69,6 +69,18 @@ class SystemProbe:
             return None
 
 
+def hybrid_attention_layers(meta: dict) -> int | None:
+    """Number of layers with a KV cache in a hybrid model, if the metadata says."""
+    if meta.get("n_attn_layers") is not None and meta.get("ssm_state_size"):
+        return int(meta["n_attn_layers"])
+    interval = meta.get("full_attention_interval")
+    if interval and meta.get("n_layer"):
+        return int(meta["n_layer"]) // int(interval)
+    if meta.get("n_attn_layers") is not None and meta["n_attn_layers"] < (meta.get("n_layer") or 0):
+        return int(meta["n_attn_layers"])
+    return None
+
+
 class MemoryEstimator:
     def __init__(self, probe=None) -> None:
         self.probe = probe or SystemProbe()
@@ -80,6 +92,14 @@ class MemoryEstimator:
             return 0
         per_pos_layer = n_head_kv * (dk * CACHE_BYTES[preset.cache_type_k] + dv * CACHE_BYTES[preset.cache_type_v])
         n_ctx = preset.ctx_per_request * preset.parallel
+        attn_layers = hybrid_attention_layers(meta)
+        if attn_layers is not None:
+            # Hybrid: only attention layers keep a KV cache; recurrent layers hold a small
+            # fixed f32 state per sequence (inner size x state size).
+            recurrent = (n_layer - attn_layers) * preset.parallel * (
+                (meta.get("ssm_inner_size") or 0) * (meta.get("ssm_state_size") or 0) * 4
+            )
+            return int(per_pos_layer * attn_layers * n_ctx + recurrent)
         window, pattern = meta.get("sliding_window"), meta.get("sliding_window_pattern")
         if window and isinstance(pattern, int) and pattern > 1:
             n_global = n_layer // pattern
@@ -106,7 +126,7 @@ class MemoryEstimator:
         kv = self.kv_bytes(entry.meta, preset)
         if not kv:
             notes.append("model metadata incomplete: KV cache not included")
-        if entry.meta.get("ssm_state_size"):
+        if entry.meta.get("ssm_state_size") and hybrid_attention_layers(entry.meta) is None:
             notes.append("hybrid/recurrent model: KV cache likely overestimated")
         compute = int(0.5 * GiB + 0.02 * weights)
         total = weights + kv + compute

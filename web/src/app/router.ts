@@ -1,7 +1,7 @@
 // Hash routing: #/models, #/requests, #/playground, #/settings.
 import { useSyncExternalStore } from "react";
 
-export const PAGES = ["models", "requests", "playground", "settings"] as const;
+export const PAGES = ["models", "discover", "requests", "playground", "api", "settings"] as const;
 export type Page = (typeof PAGES)[number];
 
 function current(): Page {

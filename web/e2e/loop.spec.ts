@@ -42,10 +42,23 @@ test("load a model, chat in the playground, see the request, replay it", async (
 });
 
 test("no horizontal overflow on any page", async ({ page }) => {
-  for (const p of ["models", "requests", "playground", "settings"]) {
+  for (const p of ["models", "discover", "requests", "playground", "api", "settings"]) {
     await page.goto(`/#/${p}`);
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, `${p} overflows horizontally`).toBeLessThanOrEqual(0);
   }
+});
+
+test("API page shows this server's URL and copy-ready code; Discover lists runnable models", async ({ page, baseURL }) => {
+  await page.goto("/#/api");
+  await expect(page.getByText(`${baseURL}/v1`).first()).toBeVisible();
+  await page.getByRole("button", { name: "curl" }).click();
+  await page.getByRole("button", { name: "Embeddings" }).click();
+  await expect(page.getByLabel("curl example: embeddings", { exact: true })).toContainText(`curl -sS ${baseURL}/v1/embeddings`);
+  await expect(page.getByRole("cell", { name: "model_not_loaded" })).toBeVisible();
+
+  await page.goto("/#/discover");
+  await expect(page.getByText("Llama-3.2-3B-Instruct-GGUF")).toBeVisible();
+  await expect(page.getByText("3B", { exact: true })).toBeVisible();
 });

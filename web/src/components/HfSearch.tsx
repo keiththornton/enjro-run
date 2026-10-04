@@ -7,13 +7,9 @@ import type { DownloadJob, HfSearchResult, QuantRow, RepoListing } from "../api/
 
 const VERDICT = { ok: "fits", tight: "tight", over: "too large" } as const;
 
-export function HfSearch({ onClose, installed }: { onClose: () => void; installed: Set<string> }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<HfSearchResult[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [searching, setSearching] = useState(false);
+/** Download jobs, kept live from the server's event stream. */
+export function useDownloadJobs(): Record<string, DownloadJob> {
   const [jobs, setJobs] = useState<Record<string, DownloadJob>>({});
-
   useEffect(() => {
     listDownloads().then((d) => setJobs(Object.fromEntries(d.map((j) => [j.id, j])))).catch(() => {});
     return subscribe("/admin/downloads/events", {
@@ -23,6 +19,15 @@ export function HfSearch({ onClose, installed }: { onClose: () => void; installe
       },
     });
   }, []);
+  return jobs;
+}
+
+export function HfSearch({ onClose, installed }: { onClose: () => void; installed: Set<string> }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<HfSearchResult[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const jobs = useDownloadJobs();
 
   async function search(e: FormEvent) {
     e.preventDefault();
@@ -112,7 +117,7 @@ function RepoRow({ result, jobs, installed }: { result: HfSearchResult; jobs: Re
   );
 }
 
-function QuantTable({ listing, jobs, installed }: { listing: RepoListing; jobs: Record<string, DownloadJob>; installed: Set<string> }) {
+export function QuantTable({ listing, jobs, installed }: { listing: RepoListing; jobs: Record<string, DownloadJob>; installed: Set<string> }) {
   const meta = listing.meta;
   return (
     <div className="quant-table">
@@ -174,7 +179,7 @@ function QuantRowView({ repo, q, job, downloaded }: { repo: string; q: QuantRow;
   );
 }
 
-function DownloadRow({ job }: { job: DownloadJob }) {
+export function DownloadRow({ job }: { job: DownloadJob }) {
   const pct = Math.floor((100 * job.done_bytes) / Math.max(job.total_bytes, 1));
   const running = job.status === "queued" || job.status === "downloading";
   return (

@@ -141,3 +141,16 @@ def test_scan_ignores_mmproj_and_incomplete(tmp_path):
     (d / "mmproj-model-f16.gguf").write_bytes(b"x")
     (d / "partial.gguf.incomplete").write_bytes(b"x")
     assert Registry(tmp_path / "models.json").scan([d], location="scan") == []
+
+
+def test_refresh_stale_meta(tmp_path):
+    f = write_gguf(tmp_path / "m.gguf")
+    reg = Registry(tmp_path / "models.json")
+    old = reg.add(ModelEntry(id="x--m--q4", aliases=["m"], paths=[str(f)], size_bytes=1,
+                             meta={"architecture": "llama"}))  # parsed by an older StrixRun
+    gone = reg.add(ModelEntry(id="x--gone--q4", aliases=["g"], paths=[str(tmp_path / "missing.gguf")],
+                              size_bytes=1, meta={}))
+    assert reg.refresh_stale_meta() == [old.id]
+    assert "n_attn_layers" in Registry(tmp_path / "models.json").get(old.id).meta
+    assert reg.get(gone.id).meta == {}
+    assert reg.refresh_stale_meta() == []  # already current

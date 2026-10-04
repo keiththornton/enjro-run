@@ -47,6 +47,25 @@ class HubClient:
                  "updated": m.last_modified.isoformat() if m.last_modified else None,
                  "gated": bool(getattr(m, "gated", False))} for m in models]
 
+    def list_gguf(self, sort: str, limit: int) -> list[dict]:
+        from huggingface_hub import HfApi
+
+        hf_sort = {"trending": "trending_score", "downloads": "downloads", "likes": "likes"}[sort]
+        models = HfApi().list_models(
+            filter="gguf", sort=hf_sort, limit=limit,
+            expand=["downloads", "likes", "createdAt", "lastModified", "trendingScore", "pipeline_tag", "gated"],
+        )
+        return [{
+            "repo": m.id,
+            "downloads": m.downloads or 0,
+            "likes": m.likes or 0,
+            "trending_score": getattr(m, "trending_score", None) or 0,
+            "pipeline_tag": m.pipeline_tag,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "last_modified": m.last_modified.isoformat() if m.last_modified else None,
+            "gated": bool(m.gated),
+        } for m in models]
+
     def repo_files(self, repo: str) -> dict:
         from huggingface_hub import HfApi
 

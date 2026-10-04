@@ -1,7 +1,9 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { Boxes, Gauge, MessageSquare, Settings2 } from "lucide-react";
+import { Boxes, Code2, Compass, Gauge, MessageSquare, Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { KeyPrompt } from "../components/KeyPrompt";
+import { ApiPage } from "../pages/Api";
+import { DiscoverPage } from "../pages/Discover";
 import { ModelsPage } from "../pages/Models";
 import { PlaygroundPage } from "../pages/Playground";
 import { RequestsPage } from "../pages/Requests";
@@ -11,8 +13,10 @@ import { StatusBar } from "./StatusBar";
 
 const NAV: { page: Page; label: string; icon: ReactNode }[] = [
   { page: "models", label: "Models", icon: <Boxes /> },
+  { page: "discover", label: "Discover", icon: <Compass /> },
   { page: "requests", label: "Requests", icon: <Gauge /> },
   { page: "playground", label: "Playground", icon: <MessageSquare /> },
+  { page: "api", label: "API", icon: <Code2 /> },
   { page: "settings", label: "Settings", icon: <Settings2 /> },
 ];
 
@@ -37,8 +41,10 @@ export function App() {
         </header>
         <main className="page" id="main">
           {page === "models" && <ModelsPage />}
+          {page === "discover" && <DiscoverPage />}
           {page === "requests" && <RequestsPage />}
           {page === "playground" && <PlaygroundPage />}
+          {page === "api" && <ApiPage />}
           {page === "settings" && <SettingsPage />}
         </main>
         <StatusBar />

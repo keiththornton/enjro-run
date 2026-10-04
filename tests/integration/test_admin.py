@@ -213,3 +213,16 @@ async def test_hf_routes_with_fake_hub(home):
         assert {q["quant"] for q in listing["quants"]} == {"Q4_K_M", "Q8_0", "F16"}
         r = await c.post("/admin/downloads", json={"repo": "owner/Model-GGUF", "quant": "Q9_X"})
         assert r.status_code == 400
+
+
+async def test_discover_route_with_fake_hub(home):
+    from tests.unit.test_discover import ROWS
+    from tests.unit.test_discover import FakeHub as DiscoverHub
+
+    a = app()
+    async with serve_app(a) as url, httpx.AsyncClient(base_url=url) as c:
+        a.state.ctx.discover.hub = DiscoverHub(ROWS)
+        r = await c.get("/admin/hf/discover", params={"sort": "downloads", "kind": "chat"})
+        assert r.status_code == 200
+        assert all(m["kind"] == "chat" for m in r.json()["data"])
+        assert (await c.get("/admin/hf/discover", params={"sort": "bogus"})).status_code == 400
