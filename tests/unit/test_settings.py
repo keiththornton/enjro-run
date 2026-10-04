@@ -14,6 +14,7 @@ from strixrun.settings import (
     SettingsStore,
     generate_api_key,
     hash_api_key,
+    normalize_public_host,
     verify_api_key,
 )
 
@@ -101,10 +102,22 @@ def test_lan_host_with_key_is_valid():
     Settings(host="0.0.0.0", api_key_hash=hash_api_key(generate_api_key())).validate()
 
 
+def test_public_hosts_without_key_rejected():
+    with pytest.raises(SettingsError, match="strixrun key set"):
+        Settings(public_hosts=["strix.example.com"]).validate()
+    Settings(public_hosts=["strix.example.com"],
+             api_key_hash=hash_api_key(generate_api_key())).validate()
+
+
+@pytest.mark.parametrize("raw", ["strix.example.com", "https://Strix.Example.com/", " STRIX.example.com/v1 "])
+def test_normalize_public_host(raw):
+    assert normalize_public_host(raw) == "strix.example.com"
+
+
 def test_api_update_rejects_file_only_fields(home):
     store = SettingsStore()
     store.save(store.load())
-    assert {"host", "binary_path", "models_dirs", "extra_scan_dirs"} <= FILE_ONLY_FIELDS
+    assert {"host", "public_hosts", "binary_path", "models_dirs", "extra_scan_dirs"} <= FILE_ONLY_FIELDS
     for field in FILE_ONLY_FIELDS:
         with pytest.raises(SettingsError, match="file-only"):
             store.update_from_api({field: "x"})

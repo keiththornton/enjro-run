@@ -17,6 +17,7 @@ from strixrun.settings import (
     generate_api_key,
     hash_api_key,
     is_loopback_host,
+    normalize_public_host,
 )
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="StrixRun: local LLM server.")
@@ -155,6 +156,8 @@ def _parse(field: str, raw: str):
         from pathlib import Path
 
         return [str(Path(p.strip()).expanduser().resolve()) for p in raw.split(",") if p.strip()]
+    if field == "public_hosts":
+        return [h for h in (normalize_public_host(p) for p in raw.split(",")) if h]
     default = getattr(Settings(), field)
     if isinstance(default, bool):
         if raw.lower() not in ("true", "false", "1", "0", "yes", "no", "on", "off"):
@@ -179,7 +182,7 @@ def _parse(field: str, raw: str):
 
 @config_app.command("set")
 def config_set(field: str, value: str) -> None:
-    """Set a config field, including file-only ones (host, binary_path, models_dirs, extra_scan_dirs)."""
+    """Set a config field, including file-only ones (host, public_hosts, binary_path, models_dirs, extra_scan_dirs)."""
     known = {f for f in Settings.__dataclass_fields__ if f != "api_key_hash"}
     if field not in known:
         _fail(f"unknown field {field!r}; known: {', '.join(sorted(known))}")

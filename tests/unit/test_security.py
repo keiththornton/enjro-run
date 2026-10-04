@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from strixrun.security import SecurityMiddleware, session_cookie_value
+from strixrun.security import SecurityMiddleware, session_cookie_value, set_session_cookie
 from strixrun.settings import Settings, generate_api_key, hash_api_key
 
 KEY = generate_api_key()
@@ -65,6 +65,8 @@ def client(app, peer="127.0.0.1", host="127.0.0.1:8790"):
 LOCAL = Settings()  # loopback, no key
 LAN = Settings(host="0.0.0.0", api_key_hash=hash_api_key(KEY))
 LAN_STRICT = Settings(host="0.0.0.0", api_key_hash=hash_api_key(KEY), trust_loopback=False)
+# A tunnel on this machine (e.g. cloudflared) forwards internet traffic from loopback.
+TUNNEL = Settings(api_key_hash=hash_api_key(KEY), public_hosts=["strix.example.com"])
 
 
 # ---- host guard (DNS rebinding) ---------------------------------------------------------
@@ -89,6 +91,51 @@ async def test_lan_ip_host_allowed_when_listening_on_lan(monkeypatch):
     async with client(build(LAN), peer="192.168.1.20", host="192.168.1.10:8790") as c:
         r = await c.get("/v1/models", headers={"Authorization": f"Bearer {KEY}"})
     assert r.status_code == 200
+
+
+@pytest.mark.parametrize("host", ["strix.example.com", "STRIX.example.com:443"])
+async def test_public_host_allowed(host):
+    async with client(build(TUNNEL), host=host) as c:
+        r = await c.get("/v1/models", headers={"Authorization": f"Bearer {KEY}"})
+    assert r.status_code == 200
+
+
+async def test_public_host_not_allowed_unless_configured():
+    async with client(build(LAN), host="strix.example.com") as c:
+        assert (await c.get("/v1/models")).status_code == 403
+
+
+async def test_public_host_never_trusts_loopback():
+    async with client(build(TUNNEL), host="strix.example.com") as c:
+        assert (await c.get("/admin/ps")).status_code == 401
+        assert (await c.get("/v1/models")).status_code == 401
+    async with client(build(TUNNEL), host="127.0.0.1:8790") as c:  # local use still trusted
+        assert (await c.get("/admin/ps")).status_code == 200
+
+
+async def test_public_host_same_origin_post_allowed():
+    async with client(build(TUNNEL), host="strix.example.com") as c:
+        r = await c.post("/admin/models/x/unload", json={},
+                         headers={"Origin": "https://strix.example.com",
+                                  "Authorization": f"Bearer {KEY}"})
+    assert r.status_code == 200
+
+
+@pytest.mark.parametrize(("host", "secure"), [("strix.example.com", True), ("127.0.0.1:8790", False)])
+async def test_session_cookie_secure_on_public_host(host, secure):
+    app = FastAPI()
+    app.state.session_secret = SECRET
+
+    @app.post("/admin/session")
+    def session(request: Request):
+        resp = JSONResponse({})
+        set_session_cookie(resp, request, TUNNEL)
+        return resp
+
+    async with client(app, host=host) as c:
+        cookie = (await c.post("/admin/session")).headers["set-cookie"].lower()
+    assert ("; secure" in cookie) is secure
+    assert "httponly" in cookie and "samesite=strict" in cookie
 
 
 # ---- origin / content-type guard (CSRF) --------------------------------------------------

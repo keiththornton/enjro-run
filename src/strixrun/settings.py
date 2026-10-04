@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field, fields
 
 from strixrun import paths
 
-FILE_ONLY_FIELDS = frozenset({"host", "binary_path", "models_dirs", "extra_scan_dirs"})
+FILE_ONLY_FIELDS = frozenset({"host", "public_hosts", "binary_path", "models_dirs", "extra_scan_dirs"})
 # Managed through dedicated endpoints, not the generic settings update.
 _PRIVATE_FIELDS = frozenset({"api_key_hash"})
 
@@ -36,6 +36,9 @@ class Settings:
     port: int = 8790
     api_key_hash: str | None = None
     trust_loopback: bool = True
+    # HTTPS hostnames a reverse proxy or tunnel serves StrixRun at (e.g. a Cloudflare
+    # Tunnel). Requests naming one never get loopback trust, so they always need the key.
+    public_hosts: list[str] = field(default_factory=list)
     models_dirs: list[str] = field(default_factory=_default_models_dirs)
     extra_scan_dirs: list[str] = field(default_factory=list)
     binary_tag: str | None = None
@@ -52,6 +55,11 @@ class Settings:
                 f"host {self.host!r} exposes StrixRun beyond this machine but no API key is set. "
                 "Run `strixrun key set` first, or use host 127.0.0.1."
             )
+        if self.public_hosts and not self.api_key_hash:
+            raise SettingsError(
+                "public_hosts exposes StrixRun to the internet but no API key is set. "
+                "Run `strixrun key set` first."
+            )
         if not 1 <= self.port <= 65535:
             raise SettingsError(f"port {self.port} is out of range")
         if self.log_body_ring_size < 0 or self.log_retention_days < 1:
@@ -65,6 +73,13 @@ class Settings:
         d["api_key_set"] = self.api_key_hash is not None
         d["file_only"] = sorted(FILE_ONLY_FIELDS)
         return d
+
+
+def normalize_public_host(value: str) -> str:
+    """Reduce 'https://Strix.Example.com/' to 'strix.example.com'."""
+    value = value.strip().lower()
+    value = value.split("://", 1)[-1]
+    return value.split("/", 1)[0]
 
 
 def is_loopback_host(host: str) -> bool:
