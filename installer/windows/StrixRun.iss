@@ -39,6 +39,8 @@ Compression=lzma2
 SolidCompression=yes
 ChangesEnvironment=yes
 CloseApplications=no
+; Writes "Setup Log <date>.txt" to %TEMP% for troubleshooting.
+SetupLogging=yes
 
 [Tasks]
 Name: "startup"; Description: "Start StrixRun when I sign in"; Flags: unchecked
@@ -57,15 +59,10 @@ Name: "{group}\Stop StrixRun"; Filename: "{app}\tools\strixrun\Scripts\pythonw.e
   WorkingDir: "{app}"; IconFilename: "{app}\strixrun.ico"; Comment: "Stop the StrixRun server"
 
 [Run]
-; uv installs Python 3.12 and StrixRun's packages into the install folder (needs internet).
-Filename: "{app}\uv.exe"; \
-  Parameters: "tool install --force --python 3.12 ""{app}\wheel\{#Wheel}"""; \
-  StatusMsg: "Installing StrixRun (downloads Python and packages, about a minute)..."; \
-  Flags: runhidden waituntilterminated; BeforeInstall: SetUvEnv
-Filename: "{app}\bin\strixrun.exe"; Parameters: "service install"; \
-  StatusMsg: "Setting StrixRun to start when you sign in..."; Flags: runhidden waituntilterminated; Tasks: startup
+; Installing Python and StrixRun (and the optional sign-in task) happens in [Code] at
+; ssPostInstall, so failures are logged, retried once and explained.
 Filename: "{app}\tools\strixrun\Scripts\pythonw.exe"; Parameters: "-m strixrun open"; \
-  Description: "Start StrixRun and open the dashboard"; Flags: postinstall nowait skipifsilent
+  Description: "Start StrixRun and open the dashboard"; Flags: postinstall nowait skipifsilent; Check: InstallSucceeded
 
 [UninstallRun]
 Filename: "{app}\bin\strixrun.exe"; Parameters: "stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopServer"
@@ -125,17 +122,68 @@ begin
   RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Paths);
 end;
 
-procedure CurStepChanged(CurStep: TSetupStep);
+function UvLogPath(): string;
 begin
-  if CurStep = ssPostInstall then
+  Result := ExpandConstant('{app}\install-uv.log');
+end;
+
+function RunUvInstall(): Integer;
+var Cmd: string; Code: Integer;
+begin
+  SetUvEnv();
+  Cmd := '/s /c ""' + ExpandConstant('{app}\uv.exe') + '" tool install --force --python 3.12 "' +
+         ExpandConstant('{app}\wheel\{#Wheel}') + '" >> "' + UvLogPath() + '" 2>&1"';
+  Log('Running: cmd.exe ' + Cmd);
+  if not Exec(ExpandConstant('{cmd}'), Cmd, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code) then
+    Code := -1;
+  Log(Format('uv exited with %d', [Code]));
+  Result := Code;
+end;
+
+function LogTail(Lines: Integer): string;
+var All: TArrayOfString; I, First: Integer;
+begin
+  Result := '';
+  if not LoadStringsFromFile(UvLogPath(), All) then exit;
+  First := GetArrayLength(All) - Lines;
+  if First < 0 then First := 0;
+  for I := First to GetArrayLength(All) - 1 do
+    Result := Result + All[I] + #13#10;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var Code: Integer;
+begin
+  if CurStep <> ssPostInstall then exit;
+  WizardForm.StatusLabel.Caption := 'Installing StrixRun (downloads Python and packages, about a minute)...';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+  Code := RunUvInstall();
+  if not InstallSucceeded() then
   begin
-    if not InstallSucceeded() then
-      MsgBox('StrixRun could not finish installing. It needs an internet connection the first time, ' +
-             'to download Python and its packages. Check your connection and run the installer again.',
-             mbError, MB_OK)
-    else if WizardIsTaskSelected('addtopath') then
-      AddToPath(ExpandConstant('{app}\bin'));
+    Log('First attempt failed; retrying once.');
+    WizardForm.StatusLabel.Caption := 'Retrying the StrixRun install...';
+    Code := RunUvInstall();
   end;
+  WizardForm.ProgressGauge.Style := npbstNormal;
+  if not InstallSucceeded() then
+  begin
+    MsgBox('StrixRun could not finish installing (uv exited with ' + IntToStr(Code) + ').' + #13#10#13#10 +
+           LogTail(12) + #13#10 +
+           'The full log is at:' + #13#10 + UvLogPath() + #13#10#13#10 +
+           'It needs an internet connection the first time. If antivirus software blocked uv.exe or ' +
+           'strixrun.exe, allow them and run the installer again.', mbError, MB_OK);
+    exit;
+  end;
+  if WizardIsTaskSelected('startup') then
+  begin
+    WizardForm.StatusLabel.Caption := 'Setting StrixRun to start when you sign in...';
+    if not Exec(ExpandConstant('{app}\bin\strixrun.exe'), 'service install', ExpandConstant('{app}'),
+                SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
+      MsgBox('StrixRun is installed, but it could not be set to start when you sign in (exit ' +
+             IntToStr(Code) + '). You can run "strixrun service install" later.', mbInformation, MB_OK);
+  end;
+  if WizardIsTaskSelected('addtopath') then
+    AddToPath(ExpandConstant('{app}\bin'));
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

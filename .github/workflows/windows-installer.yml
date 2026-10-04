@@ -73,9 +73,12 @@ jobs:
             if (-not $p.WaitForExit($seconds * 1000)) { throw "$file $argList did not finish within ${seconds}s" }
             return $p.ExitCode
           }
-          $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath', '/LOG=install.log') 600
+          $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath,startup', '/LOG=install.log') 600
           Write-Host "installer exit code $code"
+          if (Test-Path "$app\install-uv.log") { Write-Host "--- install-uv.log"; Get-Content "$app\install-uv.log" -Tail 15 }
           if (-not (Test-Path "$app\bin\strixrun.exe")) { Get-Content install.log -Tail 40; throw "strixrun.exe missing" }
+          schtasks /Query /TN StrixRun | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "sign-in task (StrixRun) was not created" }
           if (-not (Test-Path "$app\tools\strixrun\Scripts\pythonw.exe")) { throw "pythonw.exe missing (Start Menu shortcuts need it)" }
           $path = (Get-ItemProperty HKCU:\Environment).Path
           if ($path -notlike "*$app\bin*") { throw "PATH not updated: $path" }
@@ -94,6 +97,9 @@ jobs:
           if (Test-Path "$app\bin") { throw "uninstall left $app\bin behind" }
           $path = (Get-ItemProperty HKCU:\Environment).Path
           if ($path -like "*$app\bin*") { throw "uninstall left PATH entry" }
+          schtasks /Query /TN StrixRun 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "uninstall left the StrixRun sign-in task" }
+          $global:LASTEXITCODE = 0
           Write-Host "Installer round trip OK"
 
       - uses: actions/upload-artifact@v4
