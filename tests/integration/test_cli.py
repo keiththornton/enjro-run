@@ -142,3 +142,55 @@ def test_serve_refuses_when_already_running_on_this_folder():
     finally:
         lock.release()
     assert r.exit_code == 1 and "already running" in r.output and str(__import__("os").getpid()) in r.output
+
+
+# ---- open / stop -------------------------------------------------------------------------
+
+
+async def test_shutdown_endpoint_is_loopback_only_and_stops_server():
+    import httpx
+
+    key = runner.invoke(app, ["key", "set"]).stdout.strip()
+    a = create_app(binary=lambda: [sys.executable, FAKE])
+    stopped = []
+    a.state.request_shutdown = lambda: stopped.append(True)
+    async with serve_app(a) as url:
+        transport = httpx.ASGITransport(app=a, client=("192.168.1.20", 5000))
+        async with httpx.AsyncClient(transport=transport, base_url="http://localhost:8790") as lan:
+            r = await lan.post("/admin/shutdown", json={}, headers={"Authorization": f"Bearer {key}"})
+            assert r.status_code == 403 and stopped == []
+        async with httpx.AsyncClient(base_url=url) as local:
+            r = await local.post("/admin/shutdown", json={})
+            assert r.status_code == 202 and stopped == [True]
+
+
+def test_open_starts_server_and_stop_stops_it(tmp_path, monkeypatch):
+    import socket
+    import time
+
+    import httpx
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    runner.invoke(app, ["config", "set", "port", str(port)])
+    try:
+        r = runner.invoke(app, ["open", "--no-browser"])
+        assert r.exit_code == 0, r.output
+        assert f"http://127.0.0.1:{port}" in r.output
+        assert httpx.get(f"http://127.0.0.1:{port}/v1/models").status_code == 200
+        r = runner.invoke(app, ["open", "--no-browser"])  # already running: no second server
+        assert r.exit_code == 0 and "already running" in r.output
+    finally:
+        r = runner.invoke(app, ["stop"])
+    assert r.exit_code == 0 and "Stopped" in r.output
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            httpx.get(f"http://127.0.0.1:{port}/v1/models", timeout=0.5)
+        except httpx.TransportError:
+            break
+        time.sleep(0.2)
+    else:
+        raise AssertionError("server still answering after stop")
+    assert "isn't running" in runner.invoke(app, ["stop"]).output

@@ -94,7 +94,7 @@ def serve(
     typer.echo(f"StrixRun {__version__} on http://{shown}:{settings.port}  (OpenAI API at /v1)")
     if not is_loopback_host(settings.host):
         typer.echo(f"Listening on {settings.host}: other devices need the API key.")
-    uvicorn.run(
+    server = uvicorn.Server(uvicorn.Config(
         application,
         host=settings.host,
         port=settings.port,
@@ -102,7 +102,9 @@ def serve(
         log_level=log_level,
         access_log=debug,  # dashboard polling would flood the terminal; --log-level debug shows it
         timeout_graceful_shutdown=20,
-    )
+    ))
+    application.state.request_shutdown = lambda: setattr(server, "should_exit", True)
+    server.run()
 
 
 key_app = typer.Typer(no_args_is_help=True, help="Manage the API key (works while the server is stopped).")
@@ -352,6 +354,97 @@ def service_uninstall() -> None:
     from strixrun import service
 
     typer.echo(service.uninstall())
+
+
+def _local_url() -> str:
+    return f"http://127.0.0.1:{SettingsStore().load().port}"
+
+
+def _answering(url: str) -> bool:
+    import httpx
+
+    try:
+        httpx.get(f"{url}/v1/models", timeout=1.0)
+        return True  # any HTTP answer (even 401) means a server is there
+    except httpx.TransportError:
+        return False
+
+
+def _notify(message: str) -> None:
+    """Print, and on Windows without a console (Start Menu shortcut) show a message box."""
+    typer.echo(message, err=True)
+    if os.name == "nt" and (sys.stderr is None or not sys.stderr.isatty()):
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, message, "StrixRun", 0x10)
+
+
+@app.command("open")
+def open_dashboard(
+    no_browser: Annotated[bool, typer.Option("--no-browser", help="Don't open the dashboard.")] = False,
+    timeout: Annotated[float, typer.Option(help="Seconds to wait for the server to start.")] = 60.0,
+) -> None:
+    """Start StrixRun in the background if it isn't running, then open the dashboard."""
+    import subprocess
+    import time
+    import webbrowser
+    from pathlib import Path
+
+    from strixrun import paths
+
+    url = _local_url()
+    if _answering(url):
+        typer.echo(f"StrixRun is already running at {url}")
+    else:
+        log = paths.run_dir() / "logs" / "serve.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        exe = Path(sys.executable)
+        pythonw = exe.with_name("pythonw.exe")
+        cmd = [str(pythonw if os.name == "nt" and pythonw.exists() else exe), "-m", "strixrun", "serve", "--log-file", str(log)]
+        kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if os.name == "nt":
+            kwargs["creationflags"] = (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                                       | subprocess.CREATE_NO_WINDOW)
+        else:
+            kwargs["start_new_session"] = True
+        proc = subprocess.Popen(cmd, **kwargs)
+        deadline = time.monotonic() + timeout
+        while not _answering(url):
+            if proc.poll() is not None:
+                tail = log.read_text(errors="replace").strip().splitlines()[-1:] if log.exists() else []
+                _notify(f"StrixRun didn't start: {tail[0] if tail else 'see ' + str(log)}")
+                raise typer.Exit(1)
+            if time.monotonic() > deadline:
+                _notify(f"StrixRun didn't answer within {timeout:g}s; see {log}")
+                raise typer.Exit(1)
+            time.sleep(0.3)
+        typer.echo(f"StrixRun is running at {url}")
+    if not no_browser:
+        webbrowser.open(url)
+
+
+@app.command()
+def stop(
+    timeout: Annotated[float, typer.Option(help="Seconds to wait for a clean stop.")] = 30.0,
+) -> None:
+    """Stop the StrixRun server running on this computer."""
+    import time
+
+    import httpx
+
+    url = _local_url()
+    if not _answering(url):
+        typer.echo("StrixRun isn't running.")
+        return
+    r = httpx.post(f"{url}/admin/shutdown", json={}, timeout=5)
+    if r.status_code != 202:
+        _fail(_error(r))
+    deadline = time.monotonic() + timeout
+    while _answering(url):
+        if time.monotonic() > deadline:
+            _fail(f"StrixRun is still running after {timeout:g}s")
+        time.sleep(0.3)
+    typer.echo("Stopped StrixRun.")
 
 
 def main() -> None:

@@ -1,0 +1,100 @@
+name: windows-installer
+
+# Builds StrixRun-Setup-<version>.exe, then installs it on a real Windows runner,
+# starts StrixRun, checks the API and dashboard, stops it and uninstalls.
+# Pushing a v* tag also attaches the installer to a GitHub Release.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  UV_VERSION: "0.12.5"
+  UV_SHA256: "4c4d49d8738847d9b71ba319e49a5688c93eac0fe6204b1df24e98528dddf39a"
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build the wheel (includes the dashboard)
+        run: uv build --wheel
+
+      - name: Stage installer inputs
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          $wheel = (Get-ChildItem dist\*.whl | Select-Object -First 1).Name
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "WHEEL=$wheel" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory staging | Out-Null
+          Copy-Item "dist\$wheel" staging\
+          Copy-Item installer\windows\strixrun.ico staging\
+          $zip = "uv.zip"
+          Invoke-WebRequest "https://github.com/astral-sh/uv/releases/download/$env:UV_VERSION/uv-x86_64-pc-windows-msvc.zip" -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:UV_SHA256) { throw "uv.zip checksum mismatch: $hash" }
+          Expand-Archive $zip -DestinationPath uvtmp
+          Copy-Item uvtmp\uv.exe staging\
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile the installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:VERSION" "/DWheel=$env:WHEEL" `
+            "/DSourceDir=$pwd\staging" "/O$pwd\out" installer\windows\StrixRun.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          Get-ChildItem out
+
+      - name: Install, start, check, stop, uninstall
+        shell: pwsh
+        run: |
+          $setup = "out\StrixRun-Setup-$env:VERSION.exe"
+          $app = "$env:LOCALAPPDATA\Programs\StrixRun"
+          Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath', '/LOG=install.log' -Wait
+          if (-not (Test-Path "$app\bin\strixrun.exe")) { Get-Content install.log -Tail 40; throw "strixrun.exe missing" }
+          if (-not (Test-Path "$app\tools\strixrun\Scripts\pythonw.exe")) { throw "pythonw.exe missing (Start Menu shortcuts need it)" }
+          $path = (Get-ItemProperty HKCU:\Environment).Path
+          if ($path -notlike "*$app\bin*") { throw "PATH not updated: $path" }
+          & "$app\bin\strixrun.exe" version
+          # Start it the way the Start Menu shortcut does: no console window.
+          Start-Process "$app\tools\strixrun\Scripts\pythonw.exe" -ArgumentList '-m', 'strixrun', 'open', '--no-browser' -Wait
+          $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
+          if ($models.object -ne "list") { throw "unexpected /v1/models: $models" }
+          $page = Invoke-WebRequest http://127.0.0.1:8790/ -UseBasicParsing
+          if ($page.Content -notlike "*<title>StrixRun</title>*") { throw "dashboard not served" }
+          & "$app\bin\strixrun.exe" stop
+          if ($LASTEXITCODE -ne 0) { throw "stop failed" }
+          Start-Process "$app\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
+          Start-Sleep -Seconds 3
+          if (Test-Path "$app\bin") { throw "uninstall left $app\bin behind" }
+          $path = (Get-ItemProperty HKCU:\Environment).Path
+          if ($path -like "*$app\bin*") { throw "uninstall left PATH entry" }
+          Write-Host "Installer round trip OK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StrixRun-Setup
+          path: out/*.exe
+
+      - name: Attach to a GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME out\*.exe --title "StrixRun $env:GITHUB_REF_NAME" `
+            --notes "Windows: download StrixRun-Setup-$env:VERSION.exe and run it. No admin rights needed. The first install downloads Python and packages (about a minute)."
