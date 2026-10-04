@@ -112,6 +112,52 @@ strixrun serve
 strixrun config set trust_loopback false
 ```
 
+## Use it from the internet
+
+To reach StrixRun at a public HTTPS address, even on a home connection with a changing IP address, use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/). `cloudflared` runs next to StrixRun and connects out to Cloudflare. You don't need port forwarding or dynamic DNS, and Cloudflare provides the HTTPS certificate. You need a domain on Cloudflare (a free account is enough).
+
+1. Set a key and tell StrixRun its public name. Leave `host` at `127.0.0.1`, because the tunnel connects locally:
+
+   ```bash
+   strixrun key set
+   strixrun config set public_hosts strix.example.com
+   strixrun config set trust_loopback false   # recommended; see below
+   ```
+
+   Restart StrixRun.
+
+2. Install `cloudflared` (on Windows: `winget install --id Cloudflare.cloudflared`), then create and route a tunnel:
+
+   ```bash
+   cloudflared tunnel login
+   cloudflared tunnel create strixrun
+   cloudflared tunnel route dns strixrun strix.example.com
+   ```
+
+3. Point the tunnel at StrixRun in `~/.cloudflared/config.yml` (on Windows, `%USERPROFILE%\.cloudflared\config.yml`):
+
+   ```yaml
+   tunnel: strixrun
+   credentials-file: <path printed by "tunnel create">
+   ingress:
+     - hostname: strix.example.com
+       service: http://127.0.0.1:8790
+     - service: http_status:404
+   ```
+
+   Test it with `cloudflared tunnel run strixrun`. To keep it running, install it as a service: `cloudflared service install` (from an admin prompt on Windows).
+
+4. Use `https://strix.example.com/v1` as the base URL, with your key. The dashboard at `https://strix.example.com` asks for the key once.
+
+How it stays safe:
+
+- **The key is always required at a public name.** Requests for a `public_hosts` name never get the same-computer exemption, even though the tunnel delivers them from this computer. Setting `trust_loopback false` as well covers requests that reach the tunnel some other way.
+- **No key, no start.** StrixRun refuses to start with `public_hosts` set and no key.
+- **HTTPS-only session cookie.** The dashboard's session cookie is marked `Secure` at a public name, so the browser only sends it over HTTPS.
+- **Only the `public_hosts` setting changes this.** Like `host`, it can only be changed with `strixrun config set`, never over the HTTP API.
+- **Optional login in front.** API keys are 256-bit random values, so guessing one isn't practical. If you want a login page in front of the dashboard as well, add a [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/) policy. Give API clients a service token or a separate hostname so they aren't blocked.
+- **Long requests can time out.** Cloudflare gives up on a response that doesn't start within 100 seconds (error 524). For long generations, use streaming (`"stream": true`).
+
 ## Command line
 
 | Command | What it does |
@@ -141,7 +187,7 @@ Everything lives in `~/.strix/run/` (set `STRIX_HOME` to move it):
 | `strixrun.db` | Request log: metadata only |
 | `logs/` | Service logs |
 
-**File-only fields.** `host`, `binary_path`, `models_dirs` and `extra_scan_dirs` can only be changed with `strixrun config set`, never over the HTTP API. They name programs or folders, so a client holding the API key can't repoint them.
+**File-only fields.** `host`, `public_hosts`, `binary_path`, `models_dirs` and `extra_scan_dirs` can only be changed with `strixrun config set`, never over the HTTP API. They name programs or folders, so a client holding the API key can't repoint them.
 
 Useful settings:
 

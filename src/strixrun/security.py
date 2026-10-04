@@ -9,7 +9,9 @@ Order matters:
    no-preflight fetch can't send. No CORS headers are ever emitted.
 3. Auth: protected prefixes need the key, or a session cookie derived from it.
    Loopback peers are exempt when no key is set, and also when trust_loopback is
-   on. The dashboard shell is public so a LAN browser can load the key prompt.
+   on, except for requests naming a public_hosts name: a tunnel or reverse proxy on
+   this machine makes internet traffic arrive from loopback. The dashboard shell is
+   public so a LAN browser can load the key prompt.
 
 This is not BaseHTTPMiddleware: it passes `send` straight through, so streaming
 responses aren't buffered.
@@ -25,6 +27,8 @@ from collections.abc import Callable
 from http.cookies import SimpleCookie
 from urllib.parse import urlsplit
 
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from strixrun.settings import Settings, is_loopback_host, verify_api_key
@@ -70,6 +74,20 @@ def _split_host(value: str) -> str:
     return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
 
 
+def _public_names(s: Settings) -> set[str]:
+    return {_split_host(h) for h in s.public_hosts}
+
+
+def set_session_cookie(resp: Response, request: Request, s: Settings) -> None:
+    """Issue the dashboard session cookie, Secure when served at an HTTPS public host."""
+    host = _split_host(request.headers.get("host", ""))
+    resp.set_cookie(
+        COOKIE_NAME, session_cookie_value(request.app.state.session_secret, s.api_key_hash),
+        httponly=True, samesite="strict", path="/", max_age=30 * 86400,
+        secure=host in _public_names(s),
+    )
+
+
 def _is_loopback_peer(peer: str | None) -> bool:
     if not peer:
         return False
@@ -96,6 +114,7 @@ class SecurityMiddleware:
             allowed |= self._lan_names
             if s.host not in ("0.0.0.0", "::"):
                 allowed.add(s.host.lower())
+        allowed |= _public_names(s)
         return allowed
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -136,7 +155,7 @@ class SecurityMiddleware:
                     return
 
         peer = scope.get("client")[0] if scope.get("client") else None
-        key_id = self._authenticate(s, headers, peer)
+        key_id = self._authenticate(s, headers, peer, public=host in _public_names(s))
         protected = path.startswith(PROTECTED_PREFIXES) and (method, path) not in PUBLIC_ENDPOINTS
         if protected and key_id is None:
             if not s.api_key_hash:
@@ -150,8 +169,9 @@ class SecurityMiddleware:
         scope.setdefault("state", {})["key_id"] = key_id
         await self.app(scope, receive, send)
 
-    def _authenticate(self, s: Settings, headers: dict[str, str], peer: str | None) -> str | None:
-        loopback = _is_loopback_peer(peer)
+    def _authenticate(self, s: Settings, headers: dict[str, str], peer: str | None,
+                      public: bool = False) -> str | None:
+        loopback = _is_loopback_peer(peer) and not public
         if not s.api_key_hash:
             return "loopback" if loopback else None
         auth = headers.get("authorization", "")

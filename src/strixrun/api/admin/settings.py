@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from strixrun import errors, hftoken
 from strixrun.api.deps import Ctx
-from strixrun.security import COOKIE_NAME, session_cookie_value
+from strixrun.security import COOKIE_NAME, set_session_cookie
 from strixrun.settings import generate_api_key, hash_api_key
 
 router = APIRouter()
@@ -45,8 +45,7 @@ def api_key(body: ApiKeyIn, request: Request, ctx: Ctx):
     # Shown once. The caller's browser session is re-issued for the new key; every
     # other session (bound to the old key hash) stops working.
     resp = JSONResponse({"key": key, **settings_view(ctx)})
-    resp.set_cookie(COOKIE_NAME, session_cookie_value(request.app.state.session_secret, s.api_key_hash),
-                    httponly=True, samesite="strict", path="/", max_age=30 * 86400)
+    set_session_cookie(resp, request, s)
     return resp
 
 

@@ -133,6 +133,7 @@ export interface Settings {
   port: number;
   api_key_set: boolean;
   trust_loopback: boolean;
+  public_hosts: string[];
   models_dirs: string[];
   extra_scan_dirs: string[];
   binary_tag: string | null;

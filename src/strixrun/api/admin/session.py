@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from strixrun import errors
 from strixrun.api.deps import Ctx
-from strixrun.security import COOKIE_NAME, session_cookie_value
+from strixrun.security import COOKIE_NAME, set_session_cookie
 from strixrun.settings import verify_api_key
 
 router = APIRouter()
@@ -24,10 +24,7 @@ def create_session(body: SessionIn, request: Request, ctx: Ctx):
     if not verify_api_key(body.key, s.api_key_hash):
         raise errors.Unauthorized("that API key is not valid")
     resp = JSONResponse({"authenticated": True, "key_required": True})
-    resp.set_cookie(
-        COOKIE_NAME, session_cookie_value(request.app.state.session_secret, s.api_key_hash),
-        httponly=True, samesite="strict", path="/", max_age=30 * 86400,
-    )
+    set_session_cookie(resp, request, s)
     return resp
 
 
