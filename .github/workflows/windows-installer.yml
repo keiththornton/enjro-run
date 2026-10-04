@@ -76,6 +76,7 @@ jobs:
           $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath,startup', '/LOG=install.log') 600
           Write-Host "installer exit code $code"
           if (Test-Path "$app\install-uv.log") { Write-Host "--- install-uv.log"; Get-Content "$app\install-uv.log" -Tail 15 }
+          Select-String -Path "$env:TEMP\Setup Log*.txt" -Pattern "Managed Python|exit code" | Select-Object -Last 4 | ForEach-Object { $_.Line }
           if (-not (Test-Path "$app\bin\strixrun.exe")) { Get-Content install.log -Tail 40; throw "strixrun.exe missing" }
           schtasks /Query /TN StrixRun | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "sign-in task (StrixRun) was not created" }

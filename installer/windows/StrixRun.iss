@@ -41,6 +41,9 @@ ChangesEnvironment=yes
 CloseApplications=no
 ; Writes "Setup Log <date>.txt" to %TEMP% for troubleshooting.
 SetupLogging=yes
+; Inno 6.5+ applies a redirection-guard mitigation that child processes inherit; it
+; stops uv from following the NTFS junctions it creates for managed Python installs.
+RedirectionGuard=no
 
 [Tasks]
 Name: "startup"; Description: "Start StrixRun when I sign in"; Flags: unchecked
@@ -127,17 +130,51 @@ begin
   Result := ExpandConstant('{app}\install-uv.log');
 end;
 
-function RunUvInstall(): Integer;
+function RunLogged(Args: string): Integer;
 var Cmd: string; Code: Integer;
 begin
-  SetUvEnv();
-  Cmd := '/s /c ""' + ExpandConstant('{app}\uv.exe') + '" tool install --force --python 3.12 "' +
-         ExpandConstant('{app}\wheel\{#Wheel}') + '" >> "' + UvLogPath() + '" 2>&1"';
+  Cmd := '/s /c ""' + ExpandConstant('{app}\uv.exe') + '" ' + Args + ' >> "' + UvLogPath() + '" 2>&1"';
   Log('Running: cmd.exe ' + Cmd);
   if not Exec(ExpandConstant('{cmd}'), Cmd, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code) then
     Code := -1;
-  Log(Format('uv exited with %d', [Code]));
+  Log(Format('exit code %d', [Code]));
   Result := Code;
+end;
+
+{ The python.exe inside the full-version folder (cpython-3.12.N-windows-...), never the
+  minor-version junction (cpython-3.12-windows-...) that uv also creates. }
+function ManagedPythonExe(): string;
+var Rec: TFindRec; Root, Name: string;
+begin
+  Result := '';
+  Root := ExpandConstant('{app}\python\');
+  if FindFirst(Root + 'cpython-3.12.*', Rec) then
+  try
+    repeat
+      Name := Rec.Name;
+      if ((Rec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and
+         ((Rec.Attributes and $400) = 0) { not a junction (FILE_ATTRIBUTE_REPARSE_POINT) } and
+         FileExists(Root + Name + '\python.exe') then
+        Result := Root + Name + '\python.exe';
+    until (Result <> '') or not FindNext(Rec);
+  finally
+    FindClose(Rec);
+  end;
+end;
+
+function RunUvInstall(): Integer;
+var Python: string;
+begin
+  SetUvEnv();
+  Result := RunLogged('python install 3.12');
+  Python := ManagedPythonExe();
+  Log('Managed Python: ' + Python);
+  if Python = '' then
+  begin
+    if Result = 0 then Result := -2;
+    exit;
+  end;
+  Result := RunLogged('tool install --force --python "' + Python + '" "' + ExpandConstant('{app}\wheel\{#Wheel}') + '"');
 end;
 
 function LogTail(Lines: Integer): string;
