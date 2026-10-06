@@ -33,6 +33,50 @@ uv tool install git+ssh://git@github.com/keiththornton/strixrun
 
 That works while the repository is private, using your GitHub SSH key. Once it's public, `git+https://github.com/keiththornton/strixrun` works too.
 
+On Linux, StrixRun downloads a CPU-only llama.cpp build. To use an NVIDIA GPU, build llama-server with CUDA yourself and point `binary_path` at it (see [Configuration](#configuration)).
+
+## Update
+
+Your models, settings and API key are in `~/.strix` (`%USERPROFILE%\.strix` on Windows), and updating keeps them. Models that were loaded are loaded again when StrixRun restarts.
+
+### Windows
+
+Download the newer **StrixRun-Setup-<version>.exe** and run it. The installer stops StrixRun, updates it in place and keeps your choices from the first install.
+
+### Linux
+
+Run the updater script from a clone of this repository:
+
+```bash
+installer/linux/update-strixrun.sh             # latest main
+installer/linux/update-strixrun.sh --release   # newest release tag
+installer/linux/update-strixrun.sh --ref v0.1.8   # a specific tag, branch or commit (also rolls back)
+```
+
+It:
+
+- stops StrixRun, whether it runs as the `strixrun service` user unit or was started with `strixrun open`;
+- reinstalls it with `uv tool install`, rebuilding it even when the version number hasn't changed;
+- starts it again the same way.
+
+If the update fails, the previous version stays installed and is started again. If StrixRun wasn't running, it stays stopped. Add `--no-restart` to leave it stopped after updating.
+
+The script needs `uv`, `git`, and Node 20+ (the dashboard is built during the install). It stops before changing anything if one is missing, because without Node StrixRun would install with no dashboard.
+
+To install from somewhere else, use `--source` or set `STRIXRUN_SOURCE`, e.g. `--source git+https://github.com/keiththornton/strixrun` once the repository is public. Run it without a previous install to install StrixRun for the first time.
+
+### macOS, or anywhere without the script
+
+Stop StrixRun, reinstall it, then start it again:
+
+```bash
+strixrun stop
+uv tool install --force --reinstall-package strixrun git+ssh://git@github.com/keiththornton/strixrun
+strixrun open
+```
+
+Add `@v0.1.9` (or any tag, branch or commit) to the end of the URL to install that version. If StrixRun runs as a service, restart that instead of using `strixrun open`: `launchctl kickstart -k gui/$(id -u)/com.strixrun.serve` on macOS, or `systemctl --user restart strixrun` on Linux.
+
 ## Quickstart
 
 ```bash
