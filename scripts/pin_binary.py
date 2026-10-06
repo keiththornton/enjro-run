@@ -27,6 +27,10 @@ VARIANTS = {
     "win-cuda-12-x64": ("llama-{tag}-bin-win-cuda-12.4-x64.zip", ["cudart-llama-bin-win-cuda-12.4-x64.zip"]),
     "win-cuda-13-x64": ("llama-{tag}-bin-win-cuda-13.4-x64.zip", ["cudart-llama-bin-win-cuda-13.4-x64.zip"]),
     "linux-cpu-x64": ("llama-{tag}-bin-ubuntu-x64.tar.gz", []),
+    "linux-cuda-12-x64": ("llama-{tag}-bin-ubuntu-cuda-12.8-x64.tar.gz",
+                          ["cudart-llama-{tag}-bin-ubuntu-cuda-12.8-x64.tar.gz"]),
+    "linux-cuda-13-x64": ("llama-{tag}-bin-ubuntu-cuda-13.4-x64.tar.gz",
+                          ["cudart-llama-{tag}-bin-ubuntu-cuda-13.4-x64.tar.gz"]),
 }
 
 
@@ -73,7 +77,7 @@ def main() -> None:
         name = template.format(tag=args.tag)
         if name not in assets:
             sys.exit(f"{args.tag}: missing asset {name} (upstream naming changed?)")
-        variants[variant] = {**entry(assets[name]), "extras": [entry(assets[x]) for x in extras]}
+        variants[variant] = {**entry(assets[name]), "extras": [entry(assets[x.format(tag=args.tag)]) for x in extras]}
         if args.verify_small:
             for e in [variants[variant], *variants[variant]["extras"]]:
                 if e["size"] <= SMALL:

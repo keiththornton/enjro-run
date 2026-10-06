@@ -33,7 +33,13 @@ uv tool install git+ssh://git@github.com/keiththornton/strixrun
 
 That works while the repository is private, using your GitHub SSH key. Once it's public, `git+https://github.com/keiththornton/strixrun` works too.
 
-On Linux, StrixRun downloads a CPU-only llama.cpp build. To use an NVIDIA GPU, build llama-server with CUDA yourself and point `binary_path` at it (see [Configuration](#configuration)).
+On Linux and Windows with an NVIDIA GPU, StrixRun downloads a CUDA build of llama.cpp, chosen from your driver version and GPUs:
+
+- **CUDA 13:** driver 580 or newer, and every GPU from the RTX 20 series (compute capability 7.5) or later.
+- **CUDA 12:** older drivers (Linux 525.60+, Windows 527.41+), or when any GPU is older, such as a GTX 10 series card. CUDA 13 dropped support for those.
+- **CPU build:** otherwise.
+
+The CUDA runtime comes with the download, so you only need the NVIDIA driver, not the CUDA toolkit. If you'd rather use your own llama-server build, point `binary_path` at it (see [Configuration](#configuration)).
 
 ## Update
 
@@ -83,7 +89,7 @@ Add `@v0.1.9` (or any tag, branch or commit) to the end of the URL to install th
 strixrun serve
 ```
 
-On first start StrixRun downloads its pinned llama.cpp build (about 12 MB on a Mac; about 650 MB on Windows with CUDA, including the CUDA runtime). Then:
+On first start StrixRun downloads its pinned llama.cpp build (about 12 MB on a Mac; about 650 MB on Windows with CUDA, and 590–760 MB on Linux with CUDA, including the CUDA runtime). Then:
 
 1. Open **http://127.0.0.1:8790**.
 2. Choose **Find on Hugging Face** and search (e.g. `qwen2.5 instruct`), or browse **Discover** for trending, most downloaded, most liked and new GGUF models (only ones StrixRun can run; large ones are hidden by default). Expand a repo and download a quant marked **fits**.
@@ -267,6 +273,7 @@ Useful settings:
 - **Hugging Face rate limits:** add a token in Settings, or retry in a few minutes.
 - **A model shows "Needs attention":** it crashed. The reason is on the strip, and the load sheet shows llama-server's output. Typical causes are out of memory, an architecture this llama.cpp build doesn't support (update the build in Settings), or a rejected extra argument.
 - **The first load after installing takes ~15 seconds:** on macOS that's the system checking the newly downloaded llama-server the first time it runs. Later loads take about a second.
+- **Settings shows "Better build available":** StrixRun was installed before it could detect your NVIDIA GPU, or before Linux had CUDA builds, so it's still on the CPU build. Unload your models, then choose **Install** on that row to switch to the CUDA build. Updating StrixRun doesn't switch builds by itself, because the CUDA download is large.
 - **The dashboard says the dashboard isn't built:** you installed from source without Node. Run `npm ci && npm run build` in `web/`.
 
 ## Tested platforms
@@ -277,15 +284,17 @@ Useful settings:
 | Ubuntu (GitHub Actions) | `linux-cpu-x64` | **Verified in CI.** Unit, integration and real-model e2e tests (CPU) |
 | Windows (GitHub Actions) | (CPU, fake models) | **Verified in CI.** Unit and integration tests, including Job Object orphan cleanup |
 | Windows, NVIDIA GPU | `win-cuda-12/13-x64` | **Pending a manual pass** (see below) |
+| Linux, NVIDIA GPU | `linux-cuda-12/13-x64` | **Pending a manual pass** (same checklist). The install was checked on Ubuntu without a GPU: checksums verify, llama-server runs, and the bundled CUDA libraries resolve from beside it |
 
-### Windows CUDA checklist
+### NVIDIA GPU checklist (Windows and Linux)
 
 1. `uv tool install git+ssh://git@github.com/keiththornton/strixrun`, then `strixrun serve`. The CUDA build and runtime download on their own (the build is chosen from your driver version).
 2. Download and load a 7B model fully offloaded. In the load sheet's estimate, the limit should read "free VRAM".
 3. Run the e2e suite against it: `uv run pytest -m e2e tests/e2e`.
-4. End the StrixRun process in Task Manager. No `llama-server.exe` should remain.
+4. End the StrixRun process (Task Manager on Windows, `kill -9` on Linux). No `llama-server` should remain.
 5. Give a model an alias containing `:` and reload it: its preset saves and loads.
 6. `strixrun service install`, sign out and back in: StrixRun is up, with models restored.
+7. With two GPUs, load a model on each GPU alone and on both (**GPUs** in the load sheet). `nvidia-smi` should show memory used only on the chosen GPUs.
 
 ## Development
 

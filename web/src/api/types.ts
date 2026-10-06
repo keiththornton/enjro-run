@@ -156,6 +156,8 @@ export interface BinaryStatus {
   current_tag: string | null;
   previous_tag: string | null;
   variant: string | null;
+  /** The build this machine would get today; differs from `variant` after adding an NVIDIA GPU. */
+  detected_variant: string | null;
   override_path: string | null;
   installed: string[];
   default_tag: string;

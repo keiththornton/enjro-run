@@ -65,6 +65,38 @@
         "size": 16998357,
         "sha256": "c150306eb16b5ab696f76a8bdf810c35fd98a24e82158742e6fa28f420ff8410",
         "extras": []
+      },
+      "linux-cuda-12-x64": {
+        "asset": "llama-b11146-bin-ubuntu-cuda-12.8-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/llama-b11146-bin-ubuntu-cuda-12.8-x64.tar.gz",
+        "format": "tar.gz",
+        "size": 168920581,
+        "sha256": "c2ab9e19838513ff69d1af8d999ad717dd3c7ee4714ac04c7ed5ab9077c50e4e",
+        "extras": [
+          {
+            "asset": "cudart-llama-b11146-bin-ubuntu-cuda-12.8-x64.tar.gz",
+            "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/cudart-llama-b11146-bin-ubuntu-cuda-12.8-x64.tar.gz",
+            "format": "tar.gz",
+            "size": 594373356,
+            "sha256": "1466daea60aad1144819e151b2bae19d54556cf1da6c129c4f55a5ded2637c25"
+          }
+        ]
+      },
+      "linux-cuda-13-x64": {
+        "asset": "llama-b11146-bin-ubuntu-cuda-13.4-x64.tar.gz",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/llama-b11146-bin-ubuntu-cuda-13.4-x64.tar.gz",
+        "format": "tar.gz",
+        "size": 149265156,
+        "sha256": "1603d9c00a4b6eac8298c5c7868cdb080a3ac31948ab1e457441d71ce274dd7e",
+        "extras": [
+          {
+            "asset": "cudart-llama-b11146-bin-ubuntu-cuda-13.4-x64.tar.gz",
+            "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11146/cudart-llama-b11146-bin-ubuntu-cuda-13.4-x64.tar.gz",
+            "format": "tar.gz",
+            "size": 440231388,
+            "sha256": "7c2af505f8b26ecd3707ab7723fa985fee1df233b7c1d60e5e17724b536d15bb"
+          }
+        ]
       }
     }
   }

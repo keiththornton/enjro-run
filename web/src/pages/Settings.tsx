@@ -250,6 +250,20 @@ function Binary() {
           </span>
         </Row>
       )}
+      {!b.override_path && b.ready && b.detected_variant && b.variant !== b.detected_variant && (
+        <Row label="Better build available"
+          hint={b.detected_variant.includes("cuda")
+            ? "Your NVIDIA GPU can run the CUDA build; the one installed runs on the CPU only. Unload models first"
+            : "This build matches this machine better than the installed one. Unload models first"}>
+          <span className="key-actions">
+            <span className="mono settings-value">{b.detected_variant}</span>
+            <button type="button" className="btn btn-sm btn-secondary pressable" disabled={busy}
+              onClick={() => run(() => installBinary(b.current_tag ?? b.default_tag, b.detected_variant ?? undefined))}>
+              Install
+            </button>
+          </span>
+        </Row>
+      )}
       {busy && progress && (
         <div className="binary-progress" aria-live="polite">
           <span className="mono meta">

@@ -5,6 +5,7 @@ import stat
 import sys
 import tarfile
 import zipfile
+from pathlib import Path
 
 import httpx
 import pytest
@@ -204,3 +205,24 @@ def test_binary_path_override_wins(home, tmp_path):
     home.save(s)
     m, served = manifest_for({"b1": build("b1")})
     assert manager(home, m, served).command() == [str(exe)]
+
+
+@posix_only
+async def test_cuda_runtime_lands_next_to_llama_server(home):
+    # Linux CUDA releases ship the runtime in its own top-level folder; llama-server only
+    # finds it beside itself ($ORIGIN rpath).
+    m, served = manifest_for({"b1": build("b1")})
+    runtime = make_tar({"cudart-llama-b1-bin-ubuntu-cuda-12.8-x64/libcudart.so.12": b"rt",
+                        "cudart-llama-b1-bin-ubuntu-cuda-12.8-x64/libcublas.so.12": b"blas"})
+    name = "cudart-llama-b1-bin-ubuntu-cuda-12.8-x64.tar.gz"
+    url = URL.format(tag="b1", name=name)
+    served[url] = runtime
+    data = m._data["tags"]["b1"]["macos-arm64"]
+    data["extras"] = [{"asset": name, "url": url, "format": "tar.gz", "size": len(runtime),
+                       "sha256": hashlib.sha256(runtime).hexdigest()}]
+    bm = manager(home, m, served)
+    await bm.install()
+    server_dir = Path(bm.command()[0]).parent
+    assert (server_dir / "libcudart.so.12").read_bytes() == b"rt"
+    assert (server_dir / "libcublas.so.12").read_bytes() == b"blas"
+    assert not any(p.name.startswith("cudart-llama") for p in bm.bin_dir.rglob("*"))

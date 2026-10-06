@@ -15,6 +15,9 @@ router = APIRouter()
 
 class InstallIn(BaseModel):
     tag: str | None = None
+    # A different build for this machine, e.g. the CUDA build StrixRun now detects in
+    # place of the CPU build installed before. Only the detected variant is accepted.
+    variant: str | None = None
 
 
 @router.get("/binary")
@@ -34,7 +37,11 @@ async def install_binary(body: InstallIn, ctx: Ctx):
         raise errors.BadRequest(f"llama.cpp {tag} is not in the pinned manifest")
     if ctx.binaries.installing:
         raise errors.Conflict(f"an install of {ctx.binaries.installing} is already running")
-    task = asyncio.create_task(ctx.binaries.install(tag))
+    if body.variant is not None and body.variant != ctx.binaries.status()["detected_variant"]:
+        raise errors.BadRequest(f"{body.variant} isn't the build detected for this machine")
+    if body.variant is not None and ctx.backend.loaded():
+        raise errors.Conflict("unload every model before switching llama.cpp builds")
+    task = asyncio.create_task(ctx.binaries.install(tag, body.variant))
     task.add_done_callback(lambda t: t.exception())  # errors are reported via status/events
     await asyncio.sleep(0)
     return ctx.binaries.status()

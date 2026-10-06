@@ -18,7 +18,9 @@ from strixrun.winproc import hidden
 MANIFEST_PATH = Path(__file__).with_name("manifest.json")
 URL_PREFIX = "https://github.com/ggml-org/llama.cpp/releases/download/"
 CUDA13_MIN_DRIVER = (580, 0)
-CUDA12_MIN_DRIVER = (527, 41)
+CUDA12_MIN_DRIVER = (527, 41)  # Windows
+CUDA12_MIN_DRIVER_LINUX = (525, 60)  # CUDA 12.x minor-version compatibility
+CUDA13_MIN_COMPUTE = (7, 5)  # CUDA 13 dropped Maxwell, Pascal and Volta
 
 
 class BinaryError(RuntimeError):
@@ -85,23 +87,50 @@ class PlatformProbe:
         return platform.system(), platform.machine()
 
     _driver: tuple | None = None
+    _caps: tuple | None = None
 
     def nvidia_driver_version(self) -> tuple[int, int] | None:
         if PlatformProbe._driver is None:
             PlatformProbe._driver = (self._query_driver(),)
         return PlatformProbe._driver[0]
 
-    def _query_driver(self) -> tuple[int, int] | None:
+    def nvidia_compute_caps(self) -> list[tuple[int, int]]:
+        """Compute capability of each NVIDIA GPU, e.g. [(8, 6), (6, 1)]; [] if unknown."""
+        if PlatformProbe._caps is None:
+            PlatformProbe._caps = (self._query_caps(),)
+        return PlatformProbe._caps[0]
+
+    @staticmethod
+    def _nvidia_smi(query: str) -> str:
         exe = shutil.which("nvidia-smi")
         if not exe:
-            return None
+            return ""
         try:
-            out = subprocess.run([exe, "--query-gpu=driver_version", "--format=csv,noheader"],
-                                 capture_output=True, text=True, timeout=5, check=False, **hidden()).stdout
+            return subprocess.run([exe, f"--query-gpu={query}", "--format=csv,noheader"],
+                                  capture_output=True, text=True, timeout=5, check=False, **hidden()).stdout
         except (OSError, subprocess.SubprocessError):
-            return None
-        m = re.match(r"\s*(\d+)\.(\d+)", out)
+            return ""
+
+    def _query_driver(self) -> tuple[int, int] | None:
+        m = re.match(r"\s*(\d+)\.(\d+)", self._nvidia_smi("driver_version"))
         return (int(m[1]), int(m[2])) if m else None
+
+    def _query_caps(self) -> list[tuple[int, int]]:
+        out = self._nvidia_smi("compute_cap")
+        return [(int(m[1]), int(m[2])) for m in re.finditer(r"^\s*(\d+)\.(\d+)\s*$", out, re.MULTILINE)]
+
+
+def _cuda_variant(probe, prefix: str, cuda12_min: tuple[int, int]) -> str | None:
+    """The CUDA build for this driver and these GPUs, or None for the CPU build."""
+    driver = probe.nvidia_driver_version()
+    if not driver:
+        return None
+    caps = probe.nvidia_compute_caps() if hasattr(probe, "nvidia_compute_caps") else []
+    if driver >= CUDA13_MIN_DRIVER and all(c >= CUDA13_MIN_COMPUTE for c in caps):
+        return f"{prefix}-cuda-13-x64"
+    if driver >= cuda12_min:
+        return f"{prefix}-cuda-12-x64"
+    return None
 
 
 def detect_variant(probe=None) -> str:
@@ -112,14 +141,9 @@ def detect_variant(probe=None) -> str:
     if system == "Darwin":
         return "macos-arm64" if machine == "arm64" else "macos-x64"
     if system == "Windows" and x64:
-        driver = probe.nvidia_driver_version()
-        if driver and driver >= CUDA13_MIN_DRIVER:
-            return "win-cuda-13-x64"
-        if driver and driver >= CUDA12_MIN_DRIVER:
-            return "win-cuda-12-x64"
-        return "win-cpu-x64"
+        return _cuda_variant(probe, "win", CUDA12_MIN_DRIVER) or "win-cpu-x64"
     if system == "Linux" and x64:
-        return "linux-cpu-x64"
+        return _cuda_variant(probe, "linux", CUDA12_MIN_DRIVER_LINUX) or "linux-cpu-x64"
     raise BinaryError(f"no prebuilt llama-server for {system}/{machine}; set binary_path to your own build")
 
 
@@ -175,6 +199,15 @@ def safe_extract(archive: Path, fmt: str, dest: Path) -> None:
     raise BinaryError(f"unknown archive format {fmt!r}")
 
 
+def _extract_beside(archive: Path, fmt: str, scratch: Path, dest: Path) -> None:
+    """Extract an extra (the CUDA runtime) and put its files next to llama-server, which
+    finds them there (Windows DLL search, Linux $ORIGIN rpath) whatever folder they came in."""
+    safe_extract(archive, fmt, scratch)
+    for f in sorted(scratch.rglob("*")):
+        if f.is_file() and not f.is_symlink():
+            os.replace(f, dest / f.name)
+
+
 def _find_server(root: Path) -> Path | None:
     name = "llama-server.exe" if os.name == "nt" else "llama-server"
     return next((p for p in sorted(root.rglob(name)) if p.is_file()), None)
@@ -222,14 +255,17 @@ class BinaryManager:
         installed = sorted(p.name for p in self.bin_dir.iterdir() if p.is_dir() and not p.name.startswith(".")) \
             if self.bin_dir.is_dir() else []
         try:
-            variant = s.binary_variant or self._variant()
+            detected = self._variant()
         except BinaryError as e:
-            variant = None
+            detected = None
             self.last_error = self.last_error or str(e)
+        variant = s.binary_variant or detected
         return {
             "current_tag": s.binary_tag,
             "previous_tag": self._history().get("previous"),
             "variant": variant,
+            # The build this machine would get today, e.g. a CUDA build after adding an NVIDIA GPU.
+            "detected_variant": detected,
             "override_path": s.binary_path,
             "installed": installed,
             "default_tag": self.manifest.default,
@@ -266,16 +302,20 @@ class BinaryManager:
         downloads = staging.parent / f".download-{spec.tag}"
         downloads.mkdir(parents=True, exist_ok=True)
         try:
-            for item in [spec, *spec.extras]:
+            archive = downloads / spec.asset
+            await self._download(spec, archive)
+            self._progress("extract", asset=spec.asset)
+            await asyncio.to_thread(safe_extract, archive, spec.format, staging)
+            exe = _find_server(staging)
+            if exe is None:
+                raise BinaryError(f"{spec.asset} contains no llama-server executable")
+            for i, item in enumerate(spec.extras):
                 archive = downloads / item.asset
                 await self._download(item, archive)
                 self._progress("extract", asset=item.asset)
-                await asyncio.to_thread(safe_extract, archive, item.format, staging)
+                await asyncio.to_thread(_extract_beside, archive, item.format, downloads / f"extra-{i}", exe.parent)
         finally:
             shutil.rmtree(downloads, ignore_errors=True)
-        exe = _find_server(staging)
-        if exe is None:
-            raise BinaryError(f"{spec.asset} contains no llama-server executable")
         if platform.system() == "Darwin":
             await asyncio.to_thread(
                 subprocess.run, ["xattr", "-dr", "com.apple.quarantine", str(staging)],
