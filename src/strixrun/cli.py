@@ -257,6 +257,8 @@ def load(
     ctx: Annotated[int | None, typer.Option(help="Context per request, in tokens.")] = None,
     parallel: Annotated[int | None, typer.Option(help="Requests served at once.")] = None,
     gpu_layers: Annotated[int | None, typer.Option(help="Layers to offload (999 = all).")] = None,
+    gpus: Annotated[str | None, typer.Option(
+        help="NVIDIA GPUs to use, by index as on the Settings page: e.g. 1, or 0,1; 'all' splits across every GPU.")] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Load even if memory looks tight.")] = False,
     no_wait: Annotated[bool, typer.Option("--no-wait", help="Return once loading starts.")] = False,
     url: Annotated[str | None, URL_OPT] = None,
@@ -269,6 +271,11 @@ def load(
     m = c.resolve(model)
     preset = {k: v for k, v in {"ctx_per_request": ctx, "parallel": parallel, "n_gpu_layers": gpu_layers}.items()
               if v is not None}
+    if gpus is not None:
+        try:
+            preset["gpus"] = None if gpus.strip().lower() == "all" else [int(g) for g in gpus.split(",")]
+        except ValueError:
+            _fail("--gpus takes GPU indices like 1 or 0,1, or 'all'")
     r = c.call("POST", f"/admin/models/{m['id']}/load", {"preset": preset, "confirm": yes})
     if r.status_code == 409 and r.json().get("error", {}).get("code") == "needs_confirmation":
         est = r.json()["estimate"]

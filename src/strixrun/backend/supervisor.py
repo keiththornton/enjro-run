@@ -18,13 +18,15 @@ from strixrun import errors
 from strixrun.backend import procutil
 from strixrun.backend.base import ModelState, ModelStatus, Target
 from strixrun.events import EventBus
-from strixrun.presets import Preset, llama_args
+from strixrun.presets import Preset, gpu_env, llama_args
 from strixrun.registry import ModelEntry
 
 log = logging.getLogger(__name__)
 
 LOG_LINES = 500
 OFFLOADED_RE = re.compile(r"offloaded (\d+)/(\d+) layers to GPU")
+# llama_model_load_from_file_impl: using device CUDA0 (NVIDIA GeForce RTX 4090) (0000:01:00.0) - 23000 MiB free
+DEVICE_RE = re.compile(r"using device (\S+) \(([^)]*)\)")
 HEALTH_INTERVAL_S = 0.25
 PORT_ATTEMPTS = 3
 WINDOWS_DLL_NOT_FOUND = (0xC0000135, -1073741515)
@@ -257,7 +259,8 @@ class LocalProcessBackend:
             *llama_args(child.preset, self.templates_dir),
         ]
         child.state.modalities = None
-        child.proc = await procutil.spawn(child.cmd)
+        child.state.devices = None
+        child.proc = await procutil.spawn(child.cmd, env=gpu_env(child.preset))
         child.state.pid, child.state.port, child.state.started_at = child.proc.pid, port, time.time()
         procutil.write_pidfile(self.pid_dir, child.model.id, child.proc.pid)
         reader = asyncio.create_task(self._read_logs(child, child.proc))
@@ -326,6 +329,9 @@ class LocalProcessBackend:
             placed = OFFLOADED_RE.search(line)
             if placed:
                 child.state.gpu_layers = (int(placed[1]), int(placed[2]))
+            device = DEVICE_RE.search(line)
+            if device:
+                child.state.devices = [*(child.state.devices or []), f"{device[1]} ({device[2]})"]
             self.bus.publish("model.log", {"id": child.model.id, "line": line})
 
     async def _stop(self, child: _Child, persist: bool = True) -> None:

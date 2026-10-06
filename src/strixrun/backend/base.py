@@ -26,6 +26,8 @@ class ModelState:
     started_at: float | None = None
     ready_at: float | None = None
     gpu_layers: tuple[int, int] | None = None  # (on GPU, total) from llama.cpp's load log
+    # GPUs llama.cpp loaded onto, e.g. ["CUDA0 (NVIDIA GeForce RTX 4090)"], from its load log
+    devices: list[str] | None = None
     # What the running server accepts besides text, from llama-server's /props:
     # {"vision": bool, "audio": bool, "video": bool}. None until ready.
     modalities: dict[str, bool] | None = None
@@ -40,6 +42,7 @@ class ModelState:
             "started_at": self.started_at,
             "ready_at": self.ready_at,
             "gpu_layers": list(self.gpu_layers) if self.gpu_layers else None,
+            "devices": list(self.devices) if self.devices else None,
             "modalities": self.modalities,
         }
 

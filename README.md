@@ -164,7 +164,7 @@ How it stays safe:
 |---|---|
 | `strixrun serve [--port N]` | Run the server and dashboard |
 | `strixrun open` / `strixrun stop` | Start the server in the background if needed and open the dashboard / stop it |
-| `strixrun load <model> [--ctx N --parallel N --gpu-layers N --yes --no-wait]` | Load a model and wait until it's serving; exits non-zero with the reason if it fails |
+| `strixrun load <model> [--ctx N --parallel N --gpu-layers N --gpus 1\|0,1\|all --yes --no-wait]` | Load a model and wait until it's serving; exits non-zero with the reason if it fails |
 | `strixrun unload <model>` | Unload a model |
 | `strixrun ps` | Show loaded models: context, slots, queue, memory, uptime |
 | `strixrun key set` / `rotate` / `clear` | Manage the API key (works while the server is stopped) |
@@ -215,6 +215,9 @@ Useful settings:
   - In the load sheet, **Fit on GPU** picks the largest context that keeps every layer on the GPU, using an 8-bit (q8_0) KV cache if that buys more room.
   - Otherwise lower the context or pick a smaller quant.
   - Parallel requests share one context (llama.cpp's unified KV cache), so raising them doesn't cost memory.
+- **More than one NVIDIA GPU:** by default llama.cpp splits the model's layers across all of them, so the estimate adds up their free VRAM (less about 0.5 GB of buffers per extra GPU).
+  - To use only some of them, pick them under **GPUs** in the load sheet (or `strixrun load <model> --gpus 1`). The estimate and **Fit on GPU** then count only those GPUs.
+  - GPU numbers match the Settings page and `nvidia-smi`. StrixRun orders CUDA by PCI bus, so llama.cpp's `CUDA0` in the logs is the same GPU 0. Hover the model's `GPU x/y` badge to see which GPUs it loaded on.
 - **Requests fail with a context error:** raise the context per request in the load sheet. Parallel requests share it, so several long conversations at once can fill it sooner.
 - **A gated model won't download:** accept its license on huggingface.co, then add a Hugging Face token in Settings.
 - **Hugging Face rate limits:** add a token in Settings, or retry in a few minutes.

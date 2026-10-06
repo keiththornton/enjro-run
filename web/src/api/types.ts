@@ -11,6 +11,7 @@ export interface ModelState {
   started_at: number | null;
   ready_at: number | null;
   gpu_layers?: [number, number] | null;
+  devices?: string[] | null;
 }
 
 export interface Preset {
@@ -23,6 +24,8 @@ export interface Preset {
   cache_type_v: string;
   mode: "chat" | "embedding";
   kv_unified: boolean;
+  /** NVIDIA GPUs to use, by index; null = all of them. */
+  gpus?: number[] | null;
   chat_template: string | null;
   extra_args: string[];
   sampling: Record<string, number>;
@@ -59,6 +62,8 @@ export interface Estimate {
   placement?: "gpu" | "split" | "cpu";
   spill_bytes?: number;
   vram_free_bytes?: number | null;
+  /** The GPUs this estimate counts. */
+  gpus?: { index: number; name: string; free_bytes: number }[];
   ram_available_bytes?: number;
   verdict: "ok" | "tight" | "over";
   notes: string[];
@@ -188,10 +193,17 @@ export interface DiscoverRow {
   fit_hint: "likely" | "tight" | "unlikely" | null;
 }
 
+export interface Gpu {
+  index: number;
+  name: string;
+  total_bytes: number;
+  free_bytes: number;
+}
+
 export interface SystemInfo {
   ram_total_bytes: number;
   ram_available_bytes: number;
-  gpus: { name: string; total_bytes: number; free_bytes: number }[];
+  gpus: Gpu[];
   apple_silicon: boolean;
   metal_limit_bytes: number | null;
   default_limit: Estimate["limit"];

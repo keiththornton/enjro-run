@@ -26,6 +26,8 @@ CACHE_BYTES = {
 }
 METAL_DEFAULT_FRACTION = 0.67
 TIGHT_FRACTION = 0.85
+# Each extra GPU in a split holds its own compute buffers, so two GPUs hold less than their sum.
+PER_EXTRA_GPU = 512 * 1024 * 1024
 PROJECTOR_COMPUTE = 256 * 1024 * 1024  # image encoder activations; varies by model and image size
 
 
@@ -85,7 +87,7 @@ class SystemProbe:
         return value
 
     def nvidia_free_bytes(self) -> int | None:
-        """Free memory across all NVIDIA GPUs (llama.cpp splits layers over them), or None."""
+        """Free memory across all NVIDIA GPUs, or None."""
         gpus = self.gpus()
         return sum(g["free_bytes"] for g in gpus) if gpus else None
 
@@ -94,20 +96,22 @@ class SystemProbe:
         if not exe:
             return []
         try:
-            out = subprocess.run([exe, "--query-gpu=name,memory.total,memory.free", "--format=csv,noheader,nounits"],
+            out = subprocess.run([exe, "--query-gpu=index,name,memory.total,memory.free", "--format=csv,noheader,nounits"],
                                  capture_output=True, text=True, timeout=5, check=False, **hidden()).stdout
         except (OSError, subprocess.SubprocessError):
             return []
         gpus = []
         for line in out.splitlines():
-            parts = line.rsplit(",", 2)
+            index, _, rest = line.partition(",")
+            parts = rest.rsplit(",", 2)  # names can contain commas; the numbers can't
             if len(parts) != 3:
                 continue
             try:
-                total, free = int(parts[1].strip()), int(parts[2].strip())
+                idx, total, free = int(index.strip()), int(parts[1].strip()), int(parts[2].strip())
             except ValueError:
                 continue
-            gpus.append({"name": parts[0].strip(), "total_bytes": total * 1024 * 1024, "free_bytes": free * 1024 * 1024})
+            gpus.append({"index": idx, "name": parts[0].strip(),
+                         "total_bytes": total * 1024 * 1024, "free_bytes": free * 1024 * 1024})
         return gpus
 
 
@@ -155,17 +159,45 @@ class MemoryEstimator:
         placement = self.place(0, preset)
         return placement["available_bytes"], placement["limit"]
 
+    def gpus(self, preset: Preset) -> tuple[list[dict], list[str]]:
+        """The NVIDIA GPUs a model loaded with `preset` uses, and notes about the choice."""
+        if preset.n_gpu_layers == 0:
+            return [], []
+        if hasattr(self.probe, "gpus"):
+            found = self.probe.gpus()
+        else:  # a probe that only knows the total
+            free = self.probe.nvidia_free_bytes()
+            found = [] if free is None else [{"index": 0, "name": "GPU", "total_bytes": free, "free_bytes": free}]
+        if preset.gpus is None:
+            return found, []
+        by_index = {g["index"]: g for g in found}
+        chosen = [by_index[i] for i in preset.gpus if i in by_index]
+        missing = [str(i) for i in preset.gpus if i not in by_index]
+        notes = []
+        if found and missing:
+            notes.append(f"GPU {', '.join(missing)} isn't on this machine"
+                         + ("; llama.cpp will run on the CPU" if not chosen else ""))
+        return chosen, notes
+
     def place(self, total: int, preset: Preset, n_layer: int | None = None) -> dict:
         """Where llama.cpp will put `total` bytes, and whether that fits.
 
         NVIDIA: with GPU layers on auto, llama.cpp's --fit puts as many layers as fit in
         VRAM and runs the rest from system RAM on the CPU (slower), so capacity is VRAM
-        plus RAM. Apple silicon shares one pool, capped by the Metal working-set limit.
+        plus RAM. Several GPUs split the layers between them, so their free VRAM adds up,
+        less the buffers each extra GPU keeps. Apple silicon shares one pool, capped by
+        the Metal working-set limit.
         """
         ram = self.probe.available_ram()
         ngl = preset.n_gpu_layers
-        vram = self.probe.nvidia_free_bytes() if ngl != 0 else None
-        notes: list[str] = []
+        gpus, notes = self.gpus(preset)
+        used = [{"index": g["index"], "name": g["name"], "free_bytes": g["free_bytes"]} for g in gpus]
+        vram = None
+        if gpus:
+            vram = max(0, sum(g["free_bytes"] for g in gpus) - PER_EXTRA_GPU * (len(gpus) - 1))
+            if len(gpus) > 1:
+                notes.append(f"Split across {len(gpus)} GPUs (" + ", ".join(
+                    f"GPU {g['index']}: {g['free_bytes'] / 1e9:.1f} GB free" for g in gpus) + ")")
 
         def verdict(need: float, have: float) -> str:
             if need <= TIGHT_FRACTION * have:
@@ -177,16 +209,16 @@ class MemoryEstimator:
             limit = limit_mb * 1024 * 1024 if limit_mb else int(METAL_DEFAULT_FRACTION * self.probe.total_ram())
             have = min(ram, limit)
             return {"placement": "gpu", "limit": "metal", "available_bytes": have, "spill_bytes": 0,
-                    "verdict": verdict(total, have), "notes": notes, "vram_free_bytes": None}
+                    "verdict": verdict(total, have), "notes": notes, "vram_free_bytes": None, "gpus": []}
         if vram is None:
             return {"placement": "cpu", "limit": "ram", "available_bytes": ram, "spill_bytes": 0,
-                    "verdict": verdict(total, ram), "notes": notes, "vram_free_bytes": None}
+                    "verdict": verdict(total, ram), "notes": notes, "vram_free_bytes": None, "gpus": []}
 
         gpu_room = TIGHT_FRACTION * vram
         if ngl == -1 or (n_layer and ngl < n_layer):
             if ngl == -1 and total <= gpu_room:
                 return {"placement": "gpu", "limit": "vram", "available_bytes": vram, "spill_bytes": 0,
-                        "verdict": "ok", "notes": notes, "vram_free_bytes": vram}
+                        "verdict": "ok", "notes": notes, "vram_free_bytes": vram, "gpus": used}
             frac = 1.0 if ngl == -1 else min(1.0, ngl / n_layer)
             on_gpu = min(total, gpu_room) if ngl == -1 else total * frac
             spill = max(0, int(total - on_gpu))
@@ -196,12 +228,12 @@ class MemoryEstimator:
             if ngl != -1 and on_gpu > vram:
                 v = "over"
             return {"placement": "split", "limit": "vram+ram", "available_bytes": have, "spill_bytes": spill,
-                    "verdict": v, "notes": notes, "vram_free_bytes": vram}
+                    "verdict": v, "notes": notes, "vram_free_bytes": vram, "gpus": used}
         v = verdict(total, vram)
         if v != "ok":
             notes.append("Set GPU layers to auto so llama.cpp can run what doesn't fit on the CPU")
         return {"placement": "gpu", "limit": "vram", "available_bytes": vram, "spill_bytes": 0,
-                "verdict": v, "notes": notes, "vram_free_bytes": vram}
+                "verdict": v, "notes": notes, "vram_free_bytes": vram, "gpus": used}
 
     def fit_on_gpu(self, entry: ModelEntry, preset: Preset) -> dict:
         """The largest context (f16 or q8_0 KV cache) that keeps every layer on the GPU."""
@@ -221,8 +253,8 @@ class MemoryEstimator:
                             "message": f"Fits on the GPU with {ctx:,} tokens of context and a {cache} KV cache."}
         weights = entry.size_bytes + projector_bytes(entry, preset)
         return {"fits": False, "preset": preset.to_dict(), "estimate": self.estimate(entry, preset),
-                "message": (f"The model's weights alone need {weights / 1e9:.1f} GB, more than this GPU can hold "
-                            "with room to run. Pick a smaller quant to run it entirely on the GPU.")}
+                "message": (f"The model's weights alone need {weights / 1e9:.1f} GB, more than the chosen GPUs can "
+                            "hold with room to run. Pick a smaller quant, or more GPUs, to run it entirely on the GPU.")}
 
     def estimate(self, entry: ModelEntry, preset: Preset) -> dict:
         notes = []
@@ -248,6 +280,7 @@ class MemoryEstimator:
             "placement": placed["placement"],
             "spill_bytes": placed["spill_bytes"],
             "vram_free_bytes": placed["vram_free_bytes"],
+            "gpus": placed["gpus"],
             "ram_available_bytes": self.probe.available_ram(),
             "verdict": placed["verdict"],
             "notes": notes + placed["notes"],

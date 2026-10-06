@@ -234,7 +234,8 @@ async def test_system_info_reports_detected_memory(home):
 
     class Probe(FakeProbe):
         def gpus(self):
-            return [{"name": "NVIDIA GeForce RTX 3090", "total_bytes": 24 * 1024**3, "free_bytes": 23 * 1024**3}]
+            return [{"index": 0, "name": "NVIDIA GeForce RTX 3090", "total_bytes": 24 * 1024**3,
+                     "free_bytes": 23 * 1024**3}]
 
     a = app()
     async with serve_app(a) as url, httpx.AsyncClient(base_url=url) as c:

@@ -290,8 +290,8 @@ function Machine() {
           <span className="mono settings-value">none detected</span>
         </Row>
       )}
-      {info.gpus.map((g, i) => (
-        <Row key={i} label={g.name}>
+      {info.gpus.map((g) => (
+        <Row key={g.index} label={info.gpus.length > 1 ? `GPU ${g.index}: ${g.name}` : g.name}>
           <span className="mono settings-value">{fmtBytes(g.free_bytes)} free of {fmtBytes(g.total_bytes)}</span>
         </Row>
       ))}

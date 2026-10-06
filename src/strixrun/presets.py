@@ -38,6 +38,7 @@ ALLOWED_EXTRA_FLAGS: dict[str, bool] = {
 
 CACHE_TYPES = {"f32", "f16", "bf16", "q8_0", "q4_0", "q4_1", "iq4_nl", "q5_0", "q5_1"}
 DEFAULT_MAX_CTX = 8192
+MAX_GPUS = 16  # llama.cpp's GGML_CUDA_MAX_DEVICES
 
 
 class PresetError(ValueError):
@@ -59,6 +60,9 @@ class Preset:
     kv_unified: bool = True
     # Load the model's multimodal projector (images/audio) when it has one. Off saves memory.
     projector: bool = True
+    # Which NVIDIA GPUs to use, by nvidia-smi index. None = all of them (llama.cpp splits
+    # layers across them); a list = only these, e.g. [1] for just the second GPU.
+    gpus: list[int] | None = None
     chat_template: str | None = None
     extra_args: list[str] = field(default_factory=list)
     sampling: dict = field(default_factory=dict)
@@ -93,7 +97,14 @@ class Preset:
             raise PresetError("a quantized V cache requires flash attention (on or auto)")
         if self.mode not in {"chat", "embedding"}:
             raise PresetError("mode must be chat or embedding")
+        if self.gpus is not None and not _valid_gpus(self.gpus):
+            raise PresetError(f"gpus must be null (all GPUs) or a list of distinct GPU indices 0-{MAX_GPUS - 1}")
         _validate_extra_args(self.extra_args)
+
+
+def _valid_gpus(gpus) -> bool:
+    return (isinstance(gpus, list) and bool(gpus) and len(set(gpus)) == len(gpus)
+            and all(isinstance(g, int) and not isinstance(g, bool) and 0 <= g < MAX_GPUS for g in gpus))
 
 
 def _validate_extra_args(args: list[str]) -> None:
@@ -153,6 +164,18 @@ def llama_args(preset: Preset, templates_dir: Path) -> list[str]:
     if preset.chat_template:
         args += ["--chat-template-file", str(resolve_template(preset.chat_template, templates_dir))]
     return args + list(preset.extra_args)
+
+
+def gpu_env(preset: Preset) -> dict[str, str]:
+    """Environment for llama-server that picks the preset's GPUs.
+
+    CUDA numbers GPUs fastest-first by default, nvidia-smi by PCI bus. Ordering CUDA by
+    bus too makes llama.cpp's CUDA0, CUDA1... the same GPUs as the dashboard's GPU 0, 1...
+    """
+    env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"}
+    if preset.gpus is not None and preset.n_gpu_layers != 0:
+        env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in preset.gpus)
+    return env
 
 
 class PresetStore:

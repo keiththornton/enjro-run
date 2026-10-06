@@ -11,6 +11,8 @@ Behaviour knobs (environment variables):
   FAKE_CRASH_AFTER    os._exit(1) after N streamed tokens
   FAKE_STARTUP_ERROR  oom | unknown_arch | cudart | port: print that signature to stderr, exit 1
   FAKE_EVENTS_FILE    append one line per notable event ("cancelled", "request <model>")
+
+Like llama.cpp, it logs "using device CUDA<n> (...)" for each GPU in CUDA_VISIBLE_DEVICES.
 """
 
 import argparse
@@ -263,6 +265,10 @@ def main(argv: list[str] | None = None) -> None:
         sys.stderr.write(STARTUP_ERRORS[err].format(port=args.port) + "\n")
         sys.stderr.flush()
         sys.exit(1)
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+    for n, gpu in enumerate(visible.split(",") if visible else []):
+        sys.stderr.write(f"llama_model_load_from_file_impl: using device CUDA{n} (Fake GPU {gpu}) "
+                         f"(0000:0{gpu}:00.0) - 1000 MiB free\n")
     sys.stderr.write(f"load_tensors: offloaded {os.environ.get('FAKE_GPU_LAYERS', '29/29')} layers to GPU\n")
     sys.stderr.write(f"main: server is listening on http://{args.host}:{args.port}\n")
     sys.stderr.flush()

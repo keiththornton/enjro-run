@@ -4,7 +4,8 @@ import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "rea
 import { ApiError } from "../api/client";
 import { fmtBytes, fmtCtx } from "../api/format";
 import { estimate, fitModel, loadModel } from "../api/models";
-import type { Estimate, ModelView, Preset } from "../api/types";
+import { getSystem } from "../api/settings";
+import type { Estimate, Gpu, ModelView, Preset } from "../api/types";
 
 const CTX_STEPS = [2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576];
 const CACHE_TYPES = [
@@ -39,6 +40,10 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
   const [est, setEst] = useState<Estimate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [gpus, setGpus] = useState<Gpu[]>([]);
+  useEffect(() => {
+    getSystem().then((s) => setGpus(s.gpus)).catch(() => {});
+  }, []);
   const status = model.state.status;
   const trained = model.meta.context_length ?? 131072;
   const ctxOptions = useMemo(() => {
@@ -86,7 +91,7 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
       if (r.fits) {
         setPreset((p) => ({ ...p, n_gpu_layers: r.preset.n_gpu_layers, ctx_per_request: r.preset.ctx_per_request,
                            cache_type_k: r.preset.cache_type_k, cache_type_v: r.preset.cache_type_v,
-                           flash_attn: r.preset.flash_attn }));
+                           flash_attn: r.preset.flash_attn, gpus: r.preset.gpus }));
       }
     } catch (e) {
       setError((e as ApiError).message);
@@ -156,6 +161,13 @@ function LoadForm({ model, logs, onClose }: { model: ModelView; logs: string[]; 
                 </span>
                 )}
               </Field>
+              {gpus.length > 1 && preset.n_gpu_layers !== 0 && (
+                <Field label="GPUs" hint={gpuHint(gpus, preset.gpus ?? null)} wide>
+                  {(f) => (
+                  <GpuPicker {...f} gpus={gpus} value={preset.gpus ?? null} onChange={(v) => set("gpus", v)} />
+                  )}
+                </Field>
+              )}
               <Field label="Flash attention">
                 {(f) => (
                 <Segmented {...f} value={preset.flash_attn} options={["auto", "on", "off"]} onChange={(v) => set("flash_attn", v as Preset["flash_attn"])} />
@@ -238,6 +250,35 @@ function Segmented({ value, options, onChange, ...field }: FieldProps & {
   );
 }
 
+/** Toggle each GPU on or off; all on means "every GPU" (null), and one always stays on. */
+function GpuPicker({ gpus, value, onChange, ...field }: FieldProps & {
+  gpus: Gpu[]; value: number[] | null; onChange: (v: number[] | null) => void;
+}) {
+  const on = (i: number) => value === null || value.includes(i);
+  const toggle = (i: number) => {
+    const next = gpus.map((g) => g.index).filter((g) => (g === i ? !on(g) : on(g)));
+    if (next.length === 0) return;
+    onChange(next.length === gpus.length ? null : next);
+  };
+  return (
+    <div className="segmented segmented-field gpu-picker" role="group" id={field.id} aria-labelledby={`${field.id}-label`}
+      aria-describedby={field["aria-describedby"]}>
+      {gpus.map((g) => (
+        <button key={g.index} type="button" aria-pressed={on(g.index)} onClick={() => toggle(g.index)}
+          title={`${fmtBytes(g.free_bytes)} free of ${fmtBytes(g.total_bytes)}`}>
+          GPU {g.index}: {g.name.replace(/^NVIDIA (GeForce )?/, "")} · {fmtBytes(g.free_bytes)} free
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function gpuHint(gpus: Gpu[], value: number[] | null): string {
+  const chosen = value === null ? gpus : gpus.filter((g) => value.includes(g.index));
+  if (chosen.length === 1) return `Only GPU ${chosen[0].index}; the other GPUs stay free`;
+  return `Layers are split across ${chosen.length} GPUs, so their free memory adds up`;
+}
+
 type GpuMode = "auto" | "all" | "cpu" | "custom";
 const gpuMode = (n: number): GpuMode => (n === -1 ? "auto" : n === 0 ? "cpu" : n >= 999 ? "all" : "custom");
 const GPU_HINT: Record<GpuMode, string> = {
@@ -257,6 +298,7 @@ const LIMIT_LABEL = {
 export function EstimateView({ est }: { est: Estimate | null }) {
   if (!est) return <div className="estimate estimate-pending" aria-busy="true">Estimating memory…</div>;
   const total = Math.max(est.estimate_bytes, est.available_bytes, 1);
+  const gpuCount = est.gpus?.length ?? 0;
   const pct = (n: number) => `${(100 * n) / total}%`;
   const headline =
     est.verdict === "ok"
@@ -285,6 +327,7 @@ export function EstimateView({ est }: { est: Estimate | null }) {
       </dl>
       <p className="estimate-note">
         Estimate against {LIMIT_LABEL[est.limit]}
+        {gpuCount === 1 && est.limit !== "ram" && est.limit !== "metal" ? ` on GPU ${est.gpus![0].index}` : ""}
         {est.vram_free_bytes != null && est.limit !== "vram" ? ` (${fmtBytes(est.vram_free_bytes)} VRAM free)` : ""}.
         {est.notes.length ? ` ${est.notes.join(". ")}.` : ""}
       </p>
