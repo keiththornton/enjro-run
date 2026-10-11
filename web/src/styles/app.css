@@ -1,4 +1,4 @@
-/* Enjro Run app shell. Every value comes from tokens.css (StrixCode design brief). */
+/* Enjro Run app shell. Every value comes from tokens.css (Andromeda colors). */
 
 .shell {
   display: grid;
@@ -51,9 +51,10 @@
 .segmented button:hover {
   color: var(--text);
 }
+/* Selected: cyan text, like Andromeda's active tab. */
 .segmented button[aria-pressed="true"] {
   background: var(--raised);
-  color: var(--text);
+  color: var(--accent);
 }
 
 /* Page area */
@@ -224,7 +225,7 @@
   border: 1.5px solid var(--border-strong);
 }
 .glyph[data-status="ready"] .dot {
-  background: var(--accent); /* lime = live: the only lime on this page */
+  background: var(--accent); /* cyan = live: the only accent on this page */
   border-color: var(--accent);
 }
 .glyph[data-status="crashed"] .dot {
