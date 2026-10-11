@@ -8,6 +8,10 @@ is released by the OS if the process dies, so it can never go stale.
 import os
 from pathlib import Path
 
+# Windows locks a byte range, and a locked byte can't be read by anyone else. The lock
+# sits past the PID so `stop` and the "already running" message can still read it.
+LOCK_OFFSET = 4096
+
 
 class AlreadyRunning(RuntimeError):
     pass
@@ -25,13 +29,23 @@ class InstanceLock:
             if os.name == "nt":
                 import msvcrt
 
+                # StrixRun 0.1.x locked byte 0; a running one must still count.
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                os.lseek(fd, LOCK_OFFSET, os.SEEK_SET)
                 msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             else:
                 import fcntl
 
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            other = os.read(fd, 32).decode(errors="replace").strip() or "unknown"
+            try:
+                os.lseek(fd, 0, os.SEEK_SET)
+                other = os.read(fd, 32).decode(errors="replace").strip() or "unknown"
+            except OSError:
+                other = "unknown"
             os.close(fd)
             raise AlreadyRunning(
                 f"Enjro Run is already running for {self.path.parent} (pid {other}). "
@@ -50,7 +64,7 @@ class InstanceLock:
             if os.name == "nt":
                 import msvcrt
 
-                os.lseek(self._fd, 0, os.SEEK_SET)
+                os.lseek(self._fd, LOCK_OFFSET, os.SEEK_SET)
                 msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
             else:
                 import fcntl

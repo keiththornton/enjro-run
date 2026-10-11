@@ -6,6 +6,7 @@ Enjro Run is imported, and any failure is shown in a message box and written to
 launch-error.log next to this file.
 """
 
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -17,6 +18,8 @@ def _report(message: str) -> None:
         log.write_text(message, encoding="utf-8")
     except OSError:
         pass
+    if os.environ.get("ENJRORUN_NO_DIALOG"):  # tests: nobody is there to close the box
+        return
     try:
         import ctypes
 

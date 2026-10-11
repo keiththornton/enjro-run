@@ -43,6 +43,7 @@ jobs:
           curl -fs http://127.0.0.1:8790/v1/models | grep -q '"object":"list"'
 
           installer/install.sh --uninstall
+          hash -r  # bash remembers where enjrorun was; look again
           if command -v enjrorun; then echo "enjrorun still installed"; exit 1; fi
           if curl -fs http://127.0.0.1:8790/v1/models; then echo "server still running"; exit 1; fi
           test -d "$HOME/.enjro/run" || { echo "uninstall removed the data folder"; exit 1; }
@@ -60,6 +61,7 @@ jobs:
           mkdir -p "$HOME/.strix/run/models" && touch "$HOME/.strix/run/models/marker.txt"
 
           installer/install.sh --wheel "$(ls dist/enjrorun-*.whl)"
+          hash -r
           if command -v strixrun; then echo "strixrun still installed"; exit 1; fi
           test -f "$HOME/.enjro/run/models/marker.txt" || { echo "models not moved"; exit 1; }
           test ! -e "$HOME/.strix/run" || { echo ".strix/run left behind"; exit 1; }

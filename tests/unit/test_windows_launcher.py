@@ -1,5 +1,6 @@
 """installer/windows/EnjroRun.pyw: the Start Menu launcher must never fail silently."""
 
+import os
 import shutil
 import subprocess
 import sys
@@ -24,7 +25,8 @@ def test_broken_install_is_reported_not_silent(tmp_path):
     (broken / "__init__.py").write_text("raise ImportError('half-replaced install')\n")
     (broken / "cli.py").write_text("")
     r = subprocess.run([sys.executable, str(copy), "open"], capture_output=True, text=True, timeout=60, check=False,
-                       env={"PYTHONPATH": str(tmp_path / "site"), "PATH": ""})
+                       env={"PYTHONPATH": str(tmp_path / "site"), "PATH": "", "ENJRORUN_NO_DIALOG": "1",
+                            "SYSTEMROOT": os.environ.get("SYSTEMROOT", "")})
     log = tmp_path / "launch-error.log"
     assert log.exists(), r.stderr
     assert "half-replaced install" in log.read_text()
