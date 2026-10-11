@@ -36,11 +36,11 @@ export function SettingsPage() {
           hint="0 keeps no prompts or responses at all" onSave={(v) => patch({ log_body_ring_size: v })} />
       </Section>
       <Section title="Models">
-        <Toggle label="Reload models that were loaded when StrixRun stopped" checked={s.restore_loaded} onChange={(v) => patch({ restore_loaded: v })} />
+        <Toggle label="Reload models that were loaded when Enjro Run stopped" checked={s.restore_loaded} onChange={(v) => patch({ restore_loaded: v })} />
         <NumberRow label="Stop a response after the model is silent for" unit="seconds" value={s.upstream_idle_timeout_s} min={1}
           onSave={(v) => patch({ upstream_idle_timeout_s: v })} />
-        <FileOnly label="Model folder" value={s.models_dirs[0]} command="strixrun config set models_dirs <path>" />
-        <FileOnly label="Also read models from" value={s.extra_scan_dirs.join(", ") || "none"} command="strixrun config set extra_scan_dirs <path>[,<path>]" />
+        <FileOnly label="Model folder" value={s.models_dirs[0]} command="enjrorun config set models_dirs <path>" />
+        <FileOnly label="Also read models from" value={s.extra_scan_dirs.join(", ") || "none"} command="enjrorun config set extra_scan_dirs <path>[,<path>]" />
       </Section>
       <Machine />
       <Binary />
@@ -129,8 +129,8 @@ function Access({ s, onChange, onPatch }: { s: Settings; onChange: (s: Settings)
 
   return (
     <Section title="Access">
-      <FileOnly label="Listening on" value={`${s.host}:${s.port}`} command="strixrun config set host 0.0.0.0" />
-      <Row label="API key" hint={lan ? "Required: StrixRun is reachable from other devices" : "Optional while StrixRun only listens on this computer"}>
+      <FileOnly label="Listening on" value={`${s.host}:${s.port}`} command="enjrorun config set host 0.0.0.0" />
+      <Row label="API key" hint={lan ? "Required: Enjro Run is reachable from other devices" : "Optional while Enjro Run only listens on this computer"}>
         <span className="key-actions">
           <span className="mono settings-value">{s.api_key_set ? "set" : "not set"}</span>
           {s.api_key_set ? (
@@ -234,7 +234,7 @@ function Binary() {
         <span className="mono settings-value">{b.override_path ?? b.current_tag ?? "not installed"}</span>
       </Row>
       {!b.override_path && (
-        <Row label="Pinned build" hint="The version this StrixRun release was tested with">
+        <Row label="Pinned build" hint="The version this Enjro Run release was tested with">
           <span className="key-actions">
             <span className="mono settings-value">{b.default_tag}</span>
             {(upgradable || !b.ready) && (
@@ -295,7 +295,7 @@ function Machine() {
   }, []);
   if (!info) return null;
   return (
-    <Section title="This machine" note="What StrixRun detects. Memory estimates use these numbers.">
+    <Section title="This machine" note="What Enjro Run detects. Memory estimates use these numbers.">
       <Row label="System RAM">
         <span className="mono settings-value">{fmtBytes(info.ram_available_bytes)} free of {fmtBytes(info.ram_total_bytes)}</span>
       </Row>

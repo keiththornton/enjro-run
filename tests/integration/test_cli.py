@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from strixrun import paths
-from strixrun.app import create_app
-from strixrun.cli import app
-from strixrun.registry import ModelEntry, Registry
-from strixrun.settings import SettingsStore, verify_api_key
+from enjrorun import paths
+from enjrorun.app import create_app
+from enjrorun.cli import app
+from enjrorun.registry import ModelEntry, Registry
+from enjrorun.settings import SettingsStore, verify_api_key
 
 from .conftest import serve_app
 
@@ -19,7 +19,7 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     return tmp_path
 
 
@@ -27,14 +27,14 @@ def test_key_set_prints_key_once_and_stores_hash():
     r = runner.invoke(app, ["key", "set"])
     assert r.exit_code == 0
     key = r.stdout.strip()
-    assert key.startswith("sk-strix-")
+    assert key.startswith("sk-enjro-")
     stored = json.loads(paths.config_path().read_text())["api_key_hash"]
     assert key not in stored and verify_api_key(key, stored)
 
 
 def test_lan_host_requires_key_first():
     r = runner.invoke(app, ["config", "set", "host", "0.0.0.0"])
-    assert r.exit_code == 1 and "strixrun key set" in r.output
+    assert r.exit_code == 1 and "enjrorun key set" in r.output
     assert runner.invoke(app, ["key", "set"]).exit_code == 0
     assert runner.invoke(app, ["config", "set", "host", "0.0.0.0"]).exit_code == 0
     assert SettingsStore().load().host == "0.0.0.0"
@@ -82,7 +82,7 @@ def seeded():
 
 async def test_load_ps_unload(seeded, monkeypatch):
     async with serve_app(create_app(binary=lambda: [sys.executable, FAKE], load_timeout=20)) as url:
-        monkeypatch.setenv("STRIXRUN_URL", url)
+        monkeypatch.setenv("ENJRORUN_URL", url)
         r = await cli("load", "chat:q4", "--ctx", "2048")
         assert r.exit_code == 0, r.output
         assert "chat:q4 is ready" in r.output
@@ -96,7 +96,7 @@ async def test_load_ps_unload(seeded, monkeypatch):
 async def test_load_crash_exits_nonzero_with_reason(seeded, monkeypatch):
     monkeypatch.setenv("FAKE_STARTUP_ERROR", "oom")
     async with serve_app(create_app(binary=lambda: [sys.executable, FAKE], load_timeout=20)) as url:
-        monkeypatch.setenv("STRIXRUN_URL", url)
+        monkeypatch.setenv("ENJRORUN_URL", url)
         r = await cli("load", "chat:q4")
     assert r.exit_code == 1
     assert "out_of_memory" in r.output and "not enough memory" in r.output
@@ -104,21 +104,21 @@ async def test_load_crash_exits_nonzero_with_reason(seeded, monkeypatch):
 
 async def test_unknown_model_and_server_down(seeded, monkeypatch):
     async with serve_app(create_app(binary=lambda: [sys.executable, FAKE])) as url:
-        monkeypatch.setenv("STRIXRUN_URL", url)
+        monkeypatch.setenv("ENJRORUN_URL", url)
         r = await cli("load", "nope")
         assert r.exit_code == 1 and "no model named 'nope'" in r.output and "chat:q4" in r.output
-    monkeypatch.setenv("STRIXRUN_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("ENJRORUN_URL", "http://127.0.0.1:1")
     r = await cli("ps")
-    assert r.exit_code == 1 and "strixrun serve" in r.output
+    assert r.exit_code == 1 and "enjrorun serve" in r.output
 
 
 async def test_needs_key(seeded, monkeypatch):
     runner.invoke(app, ["key", "set"])
     runner.invoke(app, ["config", "set", "trust_loopback", "false"])
     async with serve_app(create_app(binary=lambda: [sys.executable, FAKE])) as url:
-        monkeypatch.setenv("STRIXRUN_URL", url)
+        monkeypatch.setenv("ENJRORUN_URL", url)
         r = await cli("ps")
-    assert r.exit_code == 1 and "STRIXRUN_API_KEY" in r.output
+    assert r.exit_code == 1 and "ENJRORUN_API_KEY" in r.output
 
 
 def test_serve_refuses_busy_port():
@@ -133,7 +133,7 @@ def test_serve_refuses_busy_port():
 
 
 def test_serve_refuses_when_already_running_on_this_folder():
-    from strixrun.instance import InstanceLock
+    from enjrorun.instance import InstanceLock
 
     lock = InstanceLock(paths.run_dir() / "server.lock")
     lock.acquire()
@@ -214,7 +214,7 @@ def test_stop_falls_back_to_ending_the_process(monkeypatch):
                                                                             request=httpx.Request("POST", url)))
         r = runner.invoke(app, ["stop", "--timeout", "2"])
         assert r.exit_code == 0, r.output
-        assert "Stopped StrixRun" in r.output and "ended" in r.output
+        assert "Stopped Enjro Run" in r.output and "ended" in r.output
         with pytest.raises(httpx.TransportError):
             httpx.get(f"http://127.0.0.1:{port}/v1/models", timeout=1)
     finally:

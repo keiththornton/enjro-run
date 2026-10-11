@@ -10,9 +10,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun.binaries.manager import BinaryError, BinaryManager, Manifest, safe_extract
-from strixrun.events import EventBus
-from strixrun.settings import SettingsStore
+from enjrorun.binaries.manager import BinaryError, BinaryManager, Manifest, safe_extract
+from enjrorun.events import EventBus
+from enjrorun.settings import SettingsStore
 
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell-script fake binary")
 URL = "https://github.com/ggml-org/llama.cpp/releases/download/{tag}/{name}"
@@ -108,7 +108,7 @@ def manifest_for(builds: dict[str, bytes]) -> tuple[Manifest, dict[str, bytes]]:
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     store = SettingsStore()
     store.save(store.load())
     return store

@@ -6,7 +6,7 @@ const api = "http://127.0.0.1:8790";
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: "../src/strixrun/web_dist",
+    outDir: "../src/enjrorun/web_dist",
     emptyOutDir: true,
     assetsInlineLimit: 0, // CSP: no data: scripts; fonts and images ship as files
   },

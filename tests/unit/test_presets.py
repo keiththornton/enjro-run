@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from strixrun.presets import Preset, PresetError, PresetStore, default_preset, gpu_env, llama_args
+from enjrorun.presets import Preset, PresetError, PresetStore, default_preset, gpu_env, llama_args
 
 
 def test_defaults_cap_context_and_detect_embedding():

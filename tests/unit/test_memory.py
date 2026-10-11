@@ -2,9 +2,9 @@ from dataclasses import dataclass
 
 import pytest
 
-from strixrun.memory import CACHE_BYTES, MemoryEstimator
-from strixrun.presets import Preset
-from strixrun.registry import ModelEntry
+from enjrorun.memory import CACHE_BYTES, MemoryEstimator
+from enjrorun.presets import Preset
+from enjrorun.registry import ModelEntry
 
 GiB = 1024**3
 
@@ -120,7 +120,7 @@ def test_verdicts(size, verdict):
 def test_macos_available_uses_memorystatus_level(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(memory.psutil, "virtual_memory",
@@ -132,7 +132,7 @@ def test_macos_available_uses_memorystatus_level(monkeypatch):
 def test_non_macos_available_is_psutil(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.platform, "system", lambda: "Linux")
     monkeypatch.setattr(memory.psutil, "virtual_memory",
@@ -212,7 +212,7 @@ def test_low_free_vram_is_explained():
 def test_nvidia_smi_lists_each_gpu_with_its_index(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.shutil, "which", lambda name: "nvidia-smi")
     out = "0, NVIDIA GeForce RTX 3060, 12288, 11000\n1, NVIDIA GeForce RTX 3090, 24576, 23000\n"
@@ -237,7 +237,7 @@ class TwoGpuProbe(FakeProbe):
 
 
 def test_all_gpus_split_adds_vram_less_per_gpu_buffers():
-    from strixrun.memory import PER_EXTRA_GPU
+    from enjrorun.memory import PER_EXTRA_GPU
 
     est = MemoryEstimator(TwoGpuProbe()).estimate(entry(LLAMA3_8B, size=20 * GiB), Preset())
     assert est["available_bytes"] == 34 * GiB - PER_EXTRA_GPU
@@ -276,7 +276,7 @@ def test_fit_on_gpu_uses_the_chosen_gpu():
 def test_nvidia_unparseable_output_means_no_gpu(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.shutil, "which", lambda name: "nvidia-smi")
     monkeypatch.setattr(memory.subprocess, "run",

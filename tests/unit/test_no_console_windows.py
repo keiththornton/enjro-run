@@ -1,6 +1,6 @@
 """Every child process must be started without a console window on Windows.
 
-StrixRun usually runs under pythonw (Start Menu shortcut, sign-in task), which has no
+Enjro Run usually runs under pythonw (Start Menu shortcut, sign-in task), which has no
 console; on Windows any console program it starts then gets a new window of its own
 unless CREATE_NO_WINDOW is passed. Users saw a window flash for every nvidia-smi call.
 """
@@ -8,7 +8,7 @@ unless CREATE_NO_WINDOW is passed. Users saw a window flash for every nvidia-smi
 import ast
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parents[2] / "src" / "strixrun"
+SRC = Path(__file__).resolve().parents[2] / "src" / "enjrorun"
 LAUNCHERS = {"run", "Popen", "check_output", "call", "create_subprocess_exec", "create_subprocess_shell"}
 MAC_ONLY = {("binaries/manager.py", "xattr")}  # macOS-only commands
 
@@ -60,7 +60,7 @@ def test_hidden_flags():
     import os
     import subprocess
 
-    from strixrun.winproc import hidden
+    from enjrorun.winproc import hidden
 
     flags = hidden().get("creationflags", 0)
     if os.name == "nt":

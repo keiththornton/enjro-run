@@ -1,4 +1,4 @@
-"""Hatch build hook: build the React dashboard into src/strixrun/web_dist.
+"""Hatch build hook: build the React dashboard into src/enjrorun/web_dist.
 
 Skipped when web_dist is already built (e.g. CI built it first), or when web/ isn't
 present (building from an sdist without the dashboard sources).
@@ -16,14 +16,14 @@ class DashboardBuildHook(BuildHookInterface):
 
     def initialize(self, version, build_data):
         root = Path(self.root)
-        dist = root / "src" / "strixrun" / "web_dist" / "index.html"
+        dist = root / "src" / "enjrorun" / "web_dist" / "index.html"
         web = root / "web"
         if dist.exists() or not (web / "package.json").exists():
             return
         npm = shutil.which("npm")
         if npm is None:
-            self.app.display_warning("npm not found: building StrixRun without the dashboard")
+            self.app.display_warning("npm not found: building Enjro Run without the dashboard")
             return
-        self.app.display_info("building the StrixRun dashboard (npm ci && npm run build)")
+        self.app.display_info("building the Enjro Run dashboard (npm ci && npm run build)")
         subprocess.run([npm, "ci"], cwd=web, check=True)
         subprocess.run([npm, "run", "build"], cwd=web, check=True)

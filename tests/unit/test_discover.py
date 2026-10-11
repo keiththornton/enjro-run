@@ -2,8 +2,8 @@ import datetime as dt
 
 import pytest
 
-from strixrun import errors
-from strixrun.discover import Discover, kind_of, params_from_name
+from enjrorun import errors
+from enjrorun.discover import Discover, kind_of, params_from_name
 from tests.unit.test_memory import FakeProbe
 
 GiB = 1024**3
@@ -38,7 +38,7 @@ ROWS = [
 
 
 def make(rows=ROWS, available=10 * GiB):
-    from strixrun.memory import MemoryEstimator
+    from enjrorun.memory import MemoryEstimator
 
     return Discover(hub=FakeHub(rows), estimator=MemoryEstimator(FakeProbe(available=available)), now=lambda: NOW)
 

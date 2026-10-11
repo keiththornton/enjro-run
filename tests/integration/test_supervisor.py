@@ -7,12 +7,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun import errors as E
-from strixrun.backend.base import ModelStatus
-from strixrun.backend.supervisor import LocalProcessBackend, classify_crash
-from strixrun.events import EventBus
-from strixrun.presets import Preset
-from strixrun.registry import ModelEntry
+from enjrorun import errors as E
+from enjrorun.backend.base import ModelStatus
+from enjrorun.backend.supervisor import LocalProcessBackend, classify_crash
+from enjrorun.events import EventBus
+from enjrorun.presets import Preset
+from enjrorun.registry import ModelEntry
 
 from .test_procutil import is_alive
 

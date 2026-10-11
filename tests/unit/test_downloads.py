@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from strixrun import errors
-from strixrun.downloads import DownloadError, Downloads, download_file
-from strixrun.events import EventBus
-from strixrun.memory import MemoryEstimator
-from strixrun.registry import Registry, quant_of
+from enjrorun import errors
+from enjrorun.downloads import DownloadError, Downloads, download_file
+from enjrorun.events import EventBus
+from enjrorun.memory import MemoryEstimator
+from enjrorun.registry import Registry, quant_of
 from tests.fixtures.make_tiny_gguf import write_gguf
 from tests.unit.test_memory import FakeProbe
 
@@ -195,8 +195,8 @@ async def test_disk_precheck(tmp_path, monkeypatch):
 
     d, _, _ = make(tmp_path, FakeHub(FILES))
     usage = namedtuple("usage", "total used free")
-    monkeypatch.setattr("strixrun.downloads.shutil.disk_usage", lambda p: usage(1, 1, 100))
-    with pytest.raises(errors.StrixError) as e:
+    monkeypatch.setattr("enjrorun.downloads.shutil.disk_usage", lambda p: usage(1, 1, 100))
+    with pytest.raises(errors.EnjroError) as e:
         await d.start("owner/Model-GGUF", "Q4_K_M")
     assert e.value.status == 507
 
@@ -204,7 +204,7 @@ async def test_disk_precheck(tmp_path, monkeypatch):
 async def test_cancel(tmp_path):
     async def slow_fetch(repo, filename, local_dir, on_progress, cancel, fake_size=None):
         await cancel.wait()
-        from strixrun.downloads import DownloadError as DE
+        from enjrorun.downloads import DownloadError as DE
 
         raise DE("cancelled")
 
@@ -221,12 +221,12 @@ async def test_gated_and_rate_limit_errors(tmp_path):
         pass
 
     d, _, _ = make(tmp_path, FakeHub(FILES, fail=GatedRepoError("Access to model is restricted")))
-    with pytest.raises(errors.StrixError) as e:
+    with pytest.raises(errors.EnjroError) as e:
         await d.repo_listing("owner/Gated-GGUF")
     assert e.value.status == 403 and "huggingface.co/owner/Gated-GGUF" in e.value.message
 
     d, _, _ = make(tmp_path, FakeHub(FILES, fail=RuntimeError("429 Client Error: Too Many Requests")))
-    with pytest.raises(errors.StrixError) as e:
+    with pytest.raises(errors.EnjroError) as e:
         await d.search("qwen")
     assert e.value.status == 429 and "token" in e.value.message
 
@@ -242,7 +242,7 @@ class DamagedHub(FakeHub):
         self.damaged, self.unreachable = damaged, unreachable
 
     async def remote_meta(self, repo, filename):
-        from strixrun.gguf_meta import GGUFError
+        from enjrorun.gguf_meta import GGUFError
 
         if self.unreachable:
             raise OSError("network down")
@@ -259,7 +259,7 @@ async def test_damaged_upload_is_refused_before_downloading(tmp_path):
         raise AssertionError("must not download")
 
     d, _, _ = make(tmp_path, DamagedHub(FILES, damaged="model-Q8_0.gguf"), fetch=fetch)
-    with pytest.raises(errors.StrixError) as e:
+    with pytest.raises(errors.EnjroError) as e:
         await d.start("owner/Model-GGUF", "Q8_0")
     assert e.value.status == 422 and e.value.code == "damaged_gguf"
     assert "model-Q8_0.gguf" in e.value.message and "another quant" in e.value.message

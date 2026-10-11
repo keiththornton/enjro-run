@@ -29,11 +29,11 @@ describe("snippet", () => {
     }
   });
 
-  it("never contains a real key: reads it from STRIXRUN_API_KEY when one is required", () => {
-    expect(snippet("curl", "chat", keyed)).toContain('Authorization: Bearer $STRIXRUN_API_KEY');
-    expect(snippet("python", "chat", keyed)).toContain('os.environ["STRIXRUN_API_KEY"]');
+  it("never contains a real key: reads it from ENJRORUN_API_KEY when one is required", () => {
+    expect(snippet("curl", "chat", keyed)).toContain('Authorization: Bearer $ENJRORUN_API_KEY');
+    expect(snippet("python", "chat", keyed)).toContain('os.environ["ENJRORUN_API_KEY"]');
     expect(snippet("python", "chat", keyed)).toMatch(/^import os/);
-    expect(snippet("javascript", "chat", keyed)).toContain("process.env.STRIXRUN_API_KEY");
+    expect(snippet("javascript", "chat", keyed)).toContain("process.env.ENJRORUN_API_KEY");
     expect(snippet("curl", "chat", open)).not.toContain("Authorization");
     expect(snippet("python", "chat", open)).toContain('api_key="not-needed"');
   });
@@ -53,7 +53,7 @@ describe("appGuides", () => {
     expect(guides.map((g) => g.name)).toContain("Open WebUI");
     const text = JSON.stringify(guides);
     expect(text).toContain("http://192.168.1.55:8790/v1");
-    expect(text).toContain("your StrixRun API key");
+    expect(text).toContain("your Enjro Run API key");
     expect(JSON.stringify(appGuides(open))).toContain("no key needed");
     const lc = guides.find((g) => g.name === "LangChain")!.code!;
     expect(lc.startsWith("import os")).toBe(true);

@@ -26,9 +26,9 @@ export function App() {
     <Tooltip.Provider delayDuration={400}>
       <div className="shell">
         <header className="topbar">
-          <a className="brand" href="#/models" aria-label="StrixRun home">
-            <img src="/strix-owl.png" alt="" width={20} height={20} />
-            <span>StrixRun</span>
+          <a className="brand" href="#/models" aria-label="Enjro Run home">
+            <img src="/enjro-run.png" alt="" width={20} height={20} />
+            <span>Enjro Run</span>
           </a>
           <nav className="segmented" aria-label="Pages">
             {NAV.map((n) => (

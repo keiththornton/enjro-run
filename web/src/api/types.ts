@@ -1,4 +1,4 @@
-// Shapes returned by the StrixRun admin and /v1 APIs.
+// Shapes returned by the Enjro Run admin and /v1 APIs.
 
 export type Status = "loading" | "ready" | "stopping" | "stopped" | "crashed";
 

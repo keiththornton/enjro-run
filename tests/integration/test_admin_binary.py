@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun.app import create_app
+from enjrorun.app import create_app
 
 from .conftest import serve_app
 
@@ -13,7 +13,7 @@ FAKE = str(Path(__file__).resolve().parents[1] / "fake_llama_server.py")
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
 
 
 async def test_binary_status_and_validation(home):

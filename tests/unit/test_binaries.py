@@ -1,6 +1,6 @@
 import pytest
 
-from strixrun.binaries.manager import BinaryError, Manifest, detect_variant
+from enjrorun.binaries.manager import BinaryError, Manifest, detect_variant
 
 
 class Probe:
@@ -42,7 +42,7 @@ def test_older_gpu_keeps_cuda_12(system, prefix):
 
 
 def test_compute_caps_parsed_from_nvidia_smi(monkeypatch):
-    from strixrun.binaries import manager
+    from enjrorun.binaries import manager
 
     monkeypatch.setattr(manager.PlatformProbe, "_nvidia_smi", staticmethod(lambda q: "8.6\n6.1\n"))
     assert manager.PlatformProbe()._query_caps() == [(8, 6), (6, 1)]

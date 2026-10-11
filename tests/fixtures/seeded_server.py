@@ -1,7 +1,7 @@
-"""A StrixRun server for UI tests: fake llama-server children and one pre-registered model.
+"""A Enjro Run server for UI tests: fake llama-server children and one pre-registered model.
 
 Usage: python tests/fixtures/seeded_server.py --port 18799
-Uses a fresh temporary STRIX_HOME on every start; serves the built dashboard.
+Uses a fresh temporary ENJRO_HOME on every start; serves the built dashboard.
 """
 
 import argparse
@@ -19,16 +19,16 @@ def main() -> None:
     p.add_argument("--port", type=int, default=18799)
     args = p.parse_args()
 
-    home = tempfile.mkdtemp(prefix="strixrun-ui-")
-    os.environ["STRIX_HOME"] = home
+    home = tempfile.mkdtemp(prefix="enjrorun-ui-")
+    os.environ["ENJRO_HOME"] = home
     os.environ.setdefault("FAKE_TOKEN_DELAY", "0.03")
 
     import uvicorn
 
-    from strixrun import paths
-    from strixrun.app import create_app
-    from strixrun.registry import ModelEntry, Registry
-    from strixrun.settings import SettingsStore
+    from enjrorun import paths
+    from enjrorun.app import create_app
+    from enjrorun.registry import ModelEntry, Registry
+    from enjrorun.settings import SettingsStore
 
     store = SettingsStore()
     s = store.load()

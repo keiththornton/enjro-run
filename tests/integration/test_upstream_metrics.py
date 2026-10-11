@@ -4,9 +4,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun import paths
-from strixrun.app import create_app
-from strixrun.registry import ModelEntry, Registry
+from enjrorun import paths
+from enjrorun.app import create_app
+from enjrorun.registry import ModelEntry, Registry
 
 from .conftest import serve_app
 
@@ -16,7 +16,7 @@ MID, ALIAS = "test--chat--q4", "chat:q4"
 
 @pytest.fixture
 async def running(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     Registry(paths.registry_path()).add(ModelEntry(id=MID, aliases=[ALIAS], paths=["/m.gguf"], size_bytes=1))
     a = create_app(binary=lambda: [sys.executable, FAKE], load_timeout=20)
     async with serve_app(a) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
@@ -60,9 +60,9 @@ async def test_metrics_after_two_requests(running):
                             json={"model": ALIAS, "messages": [], "stream": True}) as r:
             await r.aread()
     text = (await c.get("/metrics")).text
-    assert f'strixrun_requests_total{{model="{MID}",endpoint="chat",status="ok"}} 2' in text
-    assert f'strixrun_ttft_seconds_count{{model="{MID}"}} 2' in text
-    assert f'strixrun_ttft_seconds_bucket{{model="{MID}",le="+Inf"}} 2' in text
-    assert f'strixrun_queue_depth{{model="{MID}"}} 0' in text
-    assert f'strixrun_model_loaded{{model="{MID}"}} 1' in text
-    assert "strixrun_completion_tokens_total" in text
+    assert f'enjrorun_requests_total{{model="{MID}",endpoint="chat",status="ok"}} 2' in text
+    assert f'enjrorun_ttft_seconds_count{{model="{MID}"}} 2' in text
+    assert f'enjrorun_ttft_seconds_bucket{{model="{MID}",le="+Inf"}} 2' in text
+    assert f'enjrorun_queue_depth{{model="{MID}"}} 0' in text
+    assert f'enjrorun_model_loaded{{model="{MID}"}} 1' in text
+    assert "enjrorun_completion_tokens_total" in text

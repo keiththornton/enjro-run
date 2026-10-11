@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strixrun import paths
-from strixrun.settings import (
+from enjrorun import paths
+from enjrorun.settings import (
     FILE_ONLY_FIELDS,
     Settings,
     SettingsError,
@@ -21,20 +21,20 @@ from strixrun.settings import (
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     return tmp_path / "strix"
 
 
-def test_strix_home_env_override(home):
-    assert paths.strix_home() == home
+def test_enjro_home_env_override(home):
+    assert paths.enjro_home() == home
     assert paths.run_dir() == home / "run"
     assert paths.config_path() == home / "run" / "config.json"
 
 
-def test_strix_home_default(monkeypatch, tmp_path):
-    monkeypatch.delenv("STRIX_HOME", raising=False)
+def test_enjro_home_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("ENJRO_HOME", raising=False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    assert paths.strix_home() == tmp_path / ".strix"
+    assert paths.enjro_home() == tmp_path / ".enjro"
 
 
 def test_defaults_when_no_file(home):
@@ -78,7 +78,7 @@ def test_unknown_keys_in_file_are_ignored(home):
 
 def test_api_key_hash_and_verify():
     key = generate_api_key()
-    assert key.startswith("sk-strix-") and len(key) > 40
+    assert key.startswith("sk-enjro-") and len(key) > 40
     h = hash_api_key(key)
     assert key not in h
     assert verify_api_key(key, h)
@@ -94,7 +94,7 @@ def test_loopback_host_without_key_is_valid(host):
 
 @pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.20", "::"])
 def test_lan_host_without_key_rejected(host):
-    with pytest.raises(SettingsError, match="strixrun key set"):
+    with pytest.raises(SettingsError, match="enjrorun key set"):
         Settings(host=host).validate()
 
 
@@ -103,15 +103,15 @@ def test_lan_host_with_key_is_valid():
 
 
 def test_public_hosts_without_key_rejected():
-    with pytest.raises(SettingsError, match="strixrun key set"):
-        Settings(public_hosts=["strix.example.com"]).validate()
-    Settings(public_hosts=["strix.example.com"],
+    with pytest.raises(SettingsError, match="enjrorun key set"):
+        Settings(public_hosts=["enjro.example.com"]).validate()
+    Settings(public_hosts=["enjro.example.com"],
              api_key_hash=hash_api_key(generate_api_key())).validate()
 
 
-@pytest.mark.parametrize("raw", ["strix.example.com", "https://Strix.Example.com/", " STRIX.example.com/v1 "])
+@pytest.mark.parametrize("raw", ["enjro.example.com", "https://Enjro.Example.com/", " ENJRO.example.com/v1 "])
 def test_normalize_public_host(raw):
-    assert normalize_public_host(raw) == "strix.example.com"
+    assert normalize_public_host(raw) == "enjro.example.com"
 
 
 def test_api_update_rejects_file_only_fields(home):

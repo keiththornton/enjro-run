@@ -31,7 +31,7 @@ const ENDPOINTS = [
 const ERRORS = [
   ["401", "invalid_api_key", "The key is missing or wrong.", "Send Authorization: Bearer <key>."],
   ["404", "model_not_found", "No model has that name.", "Use a name from GET /v1/models?all=1."],
-  ["409", "model_not_loaded", "The model is downloaded but not loaded.", "Load it on the Models page or run strixrun load <name>."],
+  ["409", "model_not_loaded", "The model is downloaded but not loaded.", "Load it on the Models page or run enjrorun load <name>."],
   ["409", "model_crashed", "The model stopped unexpectedly.", "See the reason on the Models page, then load it again."],
   ["429", "queue_full", "Every slot is busy and the queue is full.", "Retry shortly, or load the model with more parallel requests."],
   ["502", "upstream_error", "llama-server failed or stopped responding.", "Check the model's logs on the Models page."],
@@ -70,7 +70,7 @@ export function ApiPage() {
     <section className="page-body api-page">
       <h1 className="page-title">Connect apps</h1>
       <p className="page-sub">
-        StrixRun speaks the OpenAI API, so anything that lets you set a base URL works: SDKs, Open WebUI, editors, agents.
+        Enjro Run speaks the OpenAI API, so anything that lets you set a base URL works: SDKs, Open WebUI, editors, agents.
       </p>
 
       <section className="settings-section" aria-label="Connection">
@@ -85,7 +85,7 @@ export function ApiPage() {
               <span>API key</span>
               <span className="field-hint">
                 {keyRequired
-                  ? "Required here. Send it as Authorization: Bearer <key>; the examples read it from STRIXRUN_API_KEY."
+                  ? "Required here. Send it as Authorization: Bearer <key>; the examples read it from ENJRORUN_API_KEY."
                   : "Not needed from this computer. Apps that insist on a key can use any text."}
               </span>
             </div>
@@ -96,8 +96,8 @@ export function ApiPage() {
               <div className="settings-label">
                 <span>Other devices</span>
                 <span className="field-hint">
-                  Only apps on this computer can connect. To share on your network, run <code className="mono">strixrun key set</code>, then{" "}
-                  <code className="mono">strixrun config set host 0.0.0.0</code>, and restart StrixRun.
+                  Only apps on this computer can connect. To share on your network, run <code className="mono">enjrorun key set</code>, then{" "}
+                  <code className="mono">enjrorun config set host 0.0.0.0</code>, and restart Enjro Run.
                 </span>
               </div>
             </div>

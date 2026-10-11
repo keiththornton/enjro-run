@@ -1,10 +1,10 @@
-"""Pin a llama.cpp release tag into src/strixrun/binaries/manifest.json.
+"""Pin a llama.cpp release tag into src/enjrorun/binaries/manifest.json.
 
 Usage: uv run python scripts/pin_binary.py <tag> [--default] [--verify-small]
 
 Checksums come from GitHub's published asset digests. With --verify-small, the
 small archives (CPU and macOS builds) are downloaded and hashed to cross-check those
-digests. StrixRun verifies every download against this manifest at install time.
+digests. Enjro Run verifies every download against this manifest at install time.
 """
 
 import argparse
@@ -15,7 +15,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-MANIFEST = Path(__file__).resolve().parents[1] / "src" / "strixrun" / "binaries" / "manifest.json"
+MANIFEST = Path(__file__).resolve().parents[1] / "src" / "enjrorun" / "binaries" / "manifest.json"
 REPO = "ggml-org/llama.cpp"
 SMALL = 64 * 1024 * 1024
 

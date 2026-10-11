@@ -1,5 +1,5 @@
-import strixrun
+import enjrorun
 
 
 def test_version_is_set():
-    assert strixrun.__version__ == "0.1.9"
+    assert enjrorun.__version__ == "0.2.0"

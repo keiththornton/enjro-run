@@ -3,9 +3,9 @@ import time
 
 import pytest
 
-from strixrun.events import EventBus
-from strixrun.records import RequestRecord
-from strixrun.requestlog import RequestLog
+from enjrorun.events import EventBus
+from enjrorun.records import RequestRecord
+from enjrorun.requestlog import RequestLog
 
 
 def rec(**kw) -> RequestRecord:

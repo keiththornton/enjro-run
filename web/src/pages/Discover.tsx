@@ -58,7 +58,7 @@ export function DiscoverPage() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Discover</h1>
-          <p className="page-sub">GGUF models on Hugging Face that StrixRun can run. Expand one to see every quant and whether it fits.</p>
+          <p className="page-sub">GGUF models on Hugging Face that Enjro Run can run. Expand one to see every quant and whether it fits.</p>
         </div>
       </div>
 

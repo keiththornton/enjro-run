@@ -161,7 +161,7 @@
   border: 1.5px solid var(--border-strong);
   border-top-color: var(--secondary);
   border-radius: 50%;
-  animation: strix-spin var(--dur-spin) linear infinite;
+  animation: enjro-spin var(--dur-spin) linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .spinner {
