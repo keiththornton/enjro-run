@@ -140,9 +140,11 @@ jobs:
           $legacySetup = (Get-ChildItem legacy\StrixRun-Setup-*.exe | Select-Object -First 1).FullName
           $null = Run-AndWait $legacySetup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath,startup') 600
           if (-not (Test-Path "$old\bin\strixrun.exe")) { throw "StrixRun 0.1.8 did not install" }
+          # Change a setting before starting it: a running 0.1.8 server can save its own copy
+          # of the settings over edits made while it runs.
+          & "$old\bin\strixrun.exe" config set log_retention_days 9
           $code = Run-AndWait "$old\tools\strixrun\Scripts\pythonw.exe" @("$old\StrixRun.pyw", 'open', '--no-browser') 120
           if ($code -ne 0) { throw "StrixRun 0.1.8 did not start" }
-          & "$old\bin\strixrun.exe" config set log_retention_days 9
           New-Item -ItemType File "$env:USERPROFILE\.strix\run\models\marker.txt" -Force | Out-Null
 
           # Install Enjro Run over the running StrixRun, without asking for the sign-in task:
