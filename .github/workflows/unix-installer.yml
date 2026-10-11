@@ -1,0 +1,69 @@
+name: unix-installer
+
+# Runs installer/install.sh on Linux and macOS the way a user would, with the wheel CI
+# builds: fresh install, update while running, upgrade from StrixRun 0.1.8, uninstall.
+
+on:
+  push:
+    paths: ["installer/install.sh", "src/enjrorun/migrate.py", "hatch_build.py", ".github/workflows/unix-installer.yml"]
+  workflow_dispatch:
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build the wheel (includes the dashboard)
+        run: uv build --wheel
+
+      - name: Fresh install, update while running, uninstall
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel="$(ls dist/enjrorun-*.whl)"
+          installer/install.sh --wheel "$wheel"
+          enjrorun version
+          curl -fs http://127.0.0.1:8790/ | grep -q "<title>Enjro Run</title>" || { echo "dashboard not served"; exit 1; }
+          curl -fs http://127.0.0.1:8790/v1/models | grep -q '"object":"list"'
+
+          # Running it again updates in place and starts it again.
+          installer/install.sh --wheel "$wheel"
+          curl -fs http://127.0.0.1:8790/v1/models | grep -q '"object":"list"'
+
+          installer/install.sh --uninstall
+          if command -v enjrorun; then echo "enjrorun still installed"; exit 1; fi
+          if curl -fs http://127.0.0.1:8790/v1/models; then echo "server still running"; exit 1; fi
+          test -d "$HOME/.enjro/run" || { echo "uninstall removed the data folder"; exit 1; }
+          rm -rf "$HOME/.enjro"
+
+      - name: Upgrade a StrixRun 0.1.8 install
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth 1 origin tag v0.1.8
+          git worktree add ../legacy v0.1.8
+          uv tool install --python 3.12 ../legacy
+          strixrun config set log_retention_days 9
+          strixrun open --no-browser
+          mkdir -p "$HOME/.strix/run/models" && touch "$HOME/.strix/run/models/marker.txt"
+
+          installer/install.sh --wheel "$(ls dist/enjrorun-*.whl)"
+          if command -v strixrun; then echo "strixrun still installed"; exit 1; fi
+          test -f "$HOME/.enjro/run/models/marker.txt" || { echo "models not moved"; exit 1; }
+          test ! -e "$HOME/.strix/run" || { echo ".strix/run left behind"; exit 1; }
+          grep -q '"log_retention_days": 9' "$HOME/.enjro/run/config.json" || { echo "settings not kept"; exit 1; }
+          grep -q '\.enjro/run/models' "$HOME/.enjro/run/config.json" || { echo "models_dirs not rewritten"; exit 1; }
+          curl -fs http://127.0.0.1:8790/ | grep -q "<title>Enjro Run</title>"
+          enjrorun stop

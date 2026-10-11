@@ -23,15 +23,21 @@ Download **EnjroRun-Setup-<version>.exe** from the repository's Releases page an
 - **Uninstalling:** use *Settings → Apps*. Your models and settings in `%USERPROFILE%\.enjro` are kept; delete that folder to remove them too.
 - **SmartScreen:** the installer isn't code-signed, so Windows may say *"Windows protected your PC"*. Choose **More info → Run anyway**.
 
-### macOS, Linux, or Windows from the command line
-
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Building from source also needs Node 20+ for the dashboard.
+### Linux and macOS: one command
 
 ```bash
-uv tool install git+ssh://git@github.com/keiththornton/strixrun
+gh release download --repo keiththornton/strixrun --pattern install.sh --clobber && bash install.sh
 ```
 
-That works while the repository is private, using your GitHub SSH key. Once it's public, `git+https://github.com/keiththornton/strixrun` works too.
+That's all: it installs [uv](https://docs.astral.sh/uv/) if you don't have it, downloads the release's prebuilt package (dashboard included, so you don't need Node or Git), checks its SHA-256, installs the `enjrorun` command and starts Enjro Run. It prints the dashboard address when it's done.
+
+- **Sign-in:** the repository is private, so the download uses the [GitHub CLI](https://cli.github.com/) (`gh auth login` once) or a token in `GH_TOKEN`. Once it's public, `curl -fsSL https://github.com/keiththornton/strixrun/releases/latest/download/install.sh | bash` works with no sign-in.
+- **Start at login:** add `--service` (a systemd user unit on Linux, a launchd agent on macOS). On a Linux server, also run `sudo loginctl enable-linger $USER` so it keeps running when you log out.
+- **A specific version:** `--version v0.2.0`. This also rolls back.
+- **From a clone of this repository:** `installer/install.sh` does the same.
+- **Uninstall:** `bash install.sh --uninstall`. Your models and settings in `~/.enjro` are kept.
+
+To build from source instead, use `--from-source` (needs Git and Node 20+), or `uv tool install git+ssh://git@github.com/keiththornton/strixrun`. Building without Node stops with an error rather than installing Enjro Run without its dashboard.
 
 On Linux and Windows with an NVIDIA GPU, Enjro Run downloads a CUDA build of llama.cpp, chosen from your driver version and GPUs:
 
@@ -49,27 +55,15 @@ Your models, settings and API key are in `~/.enjro` (`%USERPROFILE%\.enjro` on W
 
 Download the newer **EnjroRun-Setup-<version>.exe** and run it. The installer stops Enjro Run, updates it in place and keeps your choices from the first install.
 
-### Linux
+### Linux and macOS
 
-Run the updater script from a clone of this repository:
+Run the installer again. Without `--version` it installs the newest release:
 
 ```bash
-installer/linux/update-enjrorun.sh             # latest main
-installer/linux/update-enjrorun.sh --release   # newest release tag
-installer/linux/update-enjrorun.sh --ref v0.1.8   # a specific tag, branch or commit (also rolls back)
+gh release download --repo keiththornton/strixrun --pattern install.sh --clobber && bash install.sh
 ```
 
-It:
-
-- stops Enjro Run, whether it runs as the `enjrorun service` user unit or was started with `enjrorun open`;
-- reinstalls it with `uv tool install`, rebuilding it even when the version number hasn't changed;
-- starts it again the same way.
-
-If the update fails, the previous version stays installed and is started again. If Enjro Run wasn't running, it stays stopped. Add `--no-restart` to leave it stopped after updating.
-
-The script needs `uv`, `git`, and Node 20+ (the dashboard is built during the install). It stops before changing anything if one is missing, because without Node Enjro Run would install with no dashboard.
-
-To install from somewhere else, use `--source` or set `ENJRORUN_SOURCE`, e.g. `--source git+https://github.com/keiththornton/strixrun` once the repository is public. Run it without a previous install to install Enjro Run for the first time.
+It stops Enjro Run (whether it runs as a login service or was started with `enjrorun open`), installs the new version, and starts it again the same way. If the install fails, the previous version stays installed and is started again. Add `--no-start` to leave it stopped.
 
 ### Upgrading from StrixRun
 
@@ -84,30 +78,28 @@ StrixRun is Enjro Run's old name. Upgrading moves everything over:
 | Metrics `strixrun_*` | `enjrorun_*` |
 
 - **Windows:** run **EnjroRun-Setup-<version>.exe**. It replaces the StrixRun install in place (one entry in *Apps*), removes StrixRun's Start Menu shortcuts and PATH entry, moves your data folder and carries over the sign-in task.
-- **Linux:** run `installer/linux/update-enjrorun.sh`. It stops StrixRun, uninstalls the `strixrun` command, installs Enjro Run and moves your data and service over.
-- **macOS, or by hand:**
+- **Linux and macOS:** run `install.sh` as above. It stops StrixRun, uninstalls the `strixrun` command, installs Enjro Run and moves your data and login service over.
+- **By hand:**
 
   ```bash
   strixrun stop
   uv tool uninstall strixrun
-  uv tool install git+ssh://git@github.com/keiththornton/strixrun
+  bash install.sh --no-start   # or: uv tool install git+ssh://git@github.com/keiththornton/strixrun
   enjrorun migrate     # moves ~/.strix/run and replaces a StrixRun login service
   enjrorun open
   ```
 
 The data folder is moved in one step, so nothing is copied, and absolute paths inside your settings are updated. If it can't be moved yet (an old StrixRun is still running, or a file in it is open), Enjro Run keeps using `~/.strix/run` and tries again the next time it starts. A custom `STRIX_HOME` is used where it is. The dashboard asks for your API key again once, because the sign-in cookie was renamed; the key itself doesn't change.
 
-### macOS, or anywhere without the script
+### By hand
 
-Stop Enjro Run, reinstall it, then start it again:
+If you installed with `uv tool install` from Git, update the same way, then restart:
 
 ```bash
 enjrorun stop
 uv tool install --force --reinstall-package enjrorun git+ssh://git@github.com/keiththornton/strixrun
 enjrorun open
 ```
-
-Add `@v0.1.9` (or any tag, branch or commit) to the end of the URL to install that version. If Enjro Run runs as a service, restart that instead of using `enjrorun open`: `launchctl kickstart -k gui/$(id -u)/com.enjrorun.serve` on macOS, or `systemctl --user restart enjrorun` on Linux.
 
 ## Quickstart
 
@@ -301,7 +293,7 @@ Useful settings:
 - **A model shows "Needs attention":** it crashed. The reason is on the strip, and the load sheet shows llama-server's output. Typical causes are out of memory, an architecture this llama.cpp build doesn't support (update the build in Settings), or a rejected extra argument.
 - **The first load after installing takes ~15 seconds:** on macOS that's the system checking the newly downloaded llama-server the first time it runs. Later loads take about a second.
 - **Settings shows "Better build available":** Enjro Run was installed before it could detect your NVIDIA GPU, or before Linux had CUDA builds, so it's still on the CPU build. Unload your models, then choose **Install** on that row to switch to the CUDA build. Updating Enjro Run doesn't switch builds by itself, because the CUDA download is large.
-- **The dashboard says the dashboard isn't built:** you installed from source without Node. Run `npm ci && npm run build` in `web/`.
+- **The page at `/` says the dashboard is missing:** that install was built without Node. Reinstall with `install.sh` (Linux, macOS) or the Windows installer; both include the dashboard.
 
 ## Tested platforms
 
@@ -315,7 +307,7 @@ Useful settings:
 
 ### NVIDIA GPU checklist (Windows and Linux)
 
-1. `uv tool install git+ssh://git@github.com/keiththornton/strixrun`, then `enjrorun serve`. The CUDA build and runtime download on their own (the build is chosen from your driver version).
+1. Install it (see [Install](#install)) and start it. The CUDA build and runtime download on their own (the build is chosen from your driver version).
 2. Download and load a 7B model fully offloaded. In the load sheet's estimate, the limit should read "free VRAM".
 3. Run the e2e suite against it: `uv run pytest -m e2e tests/e2e`.
 4. End the Enjro Run process (Task Manager on Windows, `kill -9` on Linux). No `llama-server` should remain.

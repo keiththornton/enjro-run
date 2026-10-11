@@ -255,7 +255,8 @@ def _mount_dashboard(app: FastAPI) -> None:
     if not index.exists():
         @app.get("/", include_in_schema=False)
         def no_dashboard():
-            return {"enjrorun": "running", "dashboard": "not built (run `npm run build` in web/)"}
+            return {"enjrorun": "running", "dashboard": "missing from this install; reinstall with "
+                    "installer/install.sh (Linux, macOS) or the Windows installer"}
         return
 
     if (WEB_DIST / "assets").is_dir():

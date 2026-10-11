@@ -183,13 +183,31 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: EnjroRun-Setup
-          path: out/*.exe
+          path: |
+            out/*.exe
+            dist/*.whl
 
+      # The release carries everything: the Windows installer, the prebuilt wheel
+      # (dashboard included) that installer/install.sh installs on Linux and macOS, and
+      # install.sh itself. Uploads replace files on an existing release, so a re-run works.
       - name: Attach to a GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME out\*.exe --title "Enjro Run $env:GITHUB_REF_NAME" `
-            --notes "Windows: download EnjroRun-Setup-$env:VERSION.exe and run it. No admin rights needed. The first install downloads Python and packages (about a minute)."
+          $files = @((Get-ChildItem out\*.exe).FullName, (Get-ChildItem dist\*.whl).FullName, "installer\install.sh")
+          $notes = @"
+          **Windows:** download EnjroRun-Setup-$env:VERSION.exe and run it. No admin rights needed.
+
+          **Linux and macOS:** run install.sh (``bash install.sh``). It installs everything, including the dashboard, and running it again updates. While the repository is private, sign in with ``gh auth login`` first, or get it with ``gh release download $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --pattern install.sh``.
+
+          Upgrading from StrixRun keeps your models, settings and API key.
+          "@
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME @files --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME @files --title "Enjro Run $env:GITHUB_REF_NAME" --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "release upload failed" }
