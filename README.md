@@ -26,18 +26,19 @@ Download **EnjroRun-Setup-<version>.exe** from the repository's Releases page an
 ### Linux and macOS: one command
 
 ```bash
-gh release download --repo keiththornton/strixrun --pattern install.sh --clobber && bash install.sh
+curl -fsSL https://raw.githubusercontent.com/keiththornton/enjro-run/main/installer/install.sh | bash
 ```
 
 That's all: it installs [uv](https://docs.astral.sh/uv/) if you don't have it, downloads the release's prebuilt package (dashboard included, so you don't need Node or Git), checks its SHA-256, installs the `enjrorun` command and starts Enjro Run. It prints the dashboard address when it's done.
 
-- **Sign-in:** the repository is private, so the download uses the [GitHub CLI](https://cli.github.com/) (`gh auth login` once) or a token in `GH_TOKEN`. Once it's public, `curl -fsSL https://github.com/keiththornton/strixrun/releases/latest/download/install.sh | bash` works with no sign-in.
+- **Options:** pass them after `bash -s --`, e.g. `curl -fsSL … | bash -s -- --service`.
 - **Start at login:** add `--service` (a systemd user unit on Linux, a launchd agent on macOS). On a Linux server, also run `sudo loginctl enable-linger $USER` so it keeps running when you log out.
 - **A specific version:** `--version v0.2.0`. This also rolls back.
 - **From a clone of this repository:** `installer/install.sh` does the same.
-- **Uninstall:** `bash install.sh --uninstall`. Your models and settings in `~/.enjro` are kept.
+- **Read it first:** it's [installer/install.sh](installer/install.sh).
+- **Uninstall:** `curl -fsSL https://raw.githubusercontent.com/keiththornton/enjro-run/main/installer/install.sh | bash -s -- --uninstall`. Your models and settings in `~/.enjro` are kept.
 
-To build from source instead, use `--from-source` (needs Git and Node 20+), or `uv tool install git+ssh://git@github.com/keiththornton/strixrun`. Building without Node stops with an error rather than installing Enjro Run without its dashboard.
+To build from source instead, use `--from-source` (needs Git and Node 20+), or `uv tool install git+https://github.com/keiththornton/enjro-run`. Building without Node stops with an error rather than installing Enjro Run without its dashboard.
 
 On Linux and Windows with an NVIDIA GPU, Enjro Run downloads a CUDA build of llama.cpp, chosen from your driver version and GPUs:
 
@@ -60,7 +61,7 @@ Download the newer **EnjroRun-Setup-<version>.exe** and run it. The installer st
 Run the installer again. Without `--version` it installs the newest release:
 
 ```bash
-gh release download --repo keiththornton/strixrun --pattern install.sh --clobber && bash install.sh
+curl -fsSL https://raw.githubusercontent.com/keiththornton/enjro-run/main/installer/install.sh | bash
 ```
 
 It stops Enjro Run (whether it runs as a login service or was started with `enjrorun open`), installs the new version, and starts it again the same way. If the install fails, the previous version stays installed and is started again. Add `--no-start` to leave it stopped.
@@ -84,7 +85,7 @@ StrixRun is Enjro Run's old name. Upgrading moves everything over:
   ```bash
   strixrun stop
   uv tool uninstall strixrun
-  bash install.sh --no-start   # or: uv tool install git+ssh://git@github.com/keiththornton/strixrun
+  curl -fsSL https://raw.githubusercontent.com/keiththornton/enjro-run/main/installer/install.sh | bash -s -- --no-start
   enjrorun migrate     # moves ~/.strix/run and replaces a StrixRun login service
   enjrorun open
   ```
@@ -97,7 +98,7 @@ If you installed with `uv tool install` from Git, update the same way, then rest
 
 ```bash
 enjrorun stop
-uv tool install --force --reinstall-package enjrorun git+ssh://git@github.com/keiththornton/strixrun
+uv tool install --force --reinstall-package enjrorun git+https://github.com/keiththornton/enjro-run
 enjrorun open
 ```
 
