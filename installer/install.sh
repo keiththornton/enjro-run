@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install or update Enjro Run on Linux or macOS with one command. Run it again to update.
 #
-#   installer/install.sh                    # newest release
+#   curl -fsSL https://raw.githubusercontent.com/keiththornton/enjro-run/main/installer/install.sh | bash
+#   installer/install.sh                    # newest release (same thing, from a clone)
 #   installer/install.sh --version v0.2.0   # a specific release (also rolls back)
 #   installer/install.sh --service          # also start Enjro Run at login
 #   installer/install.sh --uninstall        # remove it (models and settings are kept)
@@ -13,9 +14,13 @@
 
 set -euo pipefail
 
-REPO="${ENJRORUN_REPO:-keiththornton/strixrun}"
+# Everything runs inside this block, so bash has read the whole script before running any
+# of it: safe for `curl | bash`, where commands could otherwise read the rest as input.
+{
+
+REPO="${ENJRORUN_REPO:-keiththornton/enjro-run}"
 API="${ENJRORUN_API:-https://api.github.com}"
-SOURCE="${ENJRORUN_SOURCE:-git+ssh://git@github.com/$REPO}"
+SOURCE="${ENJRORUN_SOURCE:-git+https://github.com/$REPO}"
 VERSION=""
 WHEEL=""
 FROM_SOURCE=""
@@ -39,8 +44,7 @@ Usage: $(basename "$0") [options]
                       (default: main), from \$ENJRORUN_SOURCE or $SOURCE
   -h, --help          show this help
 
-The repository is private: downloads use \`gh\` if you're signed in (gh auth login), or a
-token in GH_TOKEN / GITHUB_TOKEN. Once it's public, no sign-in is needed.
+No sign-in is needed. If GitHub rate-limits you, set GH_TOKEN (or sign in with gh).
 EOF
 }
 
@@ -199,7 +203,7 @@ else
   say "Looking up ${VERSION:-the newest release} of $REPO"
   if ! api_get "$release_url" "$TMP/release.json"; then
     if [ -z "$token" ]; then
-      die "couldn't read $REPO's releases. It's a private repository: sign in with 'gh auth login' (or set GH_TOKEN), then run this again"
+      die "couldn't read $REPO's releases from GitHub (no network, or rate-limited: set GH_TOKEN and run this again)"
     fi
     die "couldn't find ${VERSION:-a release} in $REPO"
   fi
@@ -298,3 +302,5 @@ if ! PATH="$USER_PATH" command -v enjrorun >/dev/null; then
   echo "    Open a new terminal to use the enjrorun command (it's in $(dirname "$(command -v enjrorun)"))."
 fi
 echo "    Update later by running this installer again."
+exit 0
+}

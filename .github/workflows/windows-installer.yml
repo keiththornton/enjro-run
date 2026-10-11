@@ -201,7 +201,7 @@ jobs:
           $notes = @"
           **Windows:** download EnjroRun-Setup-$env:VERSION.exe and run it. No admin rights needed.
 
-          **Linux and macOS:** run install.sh (``bash install.sh``). It installs everything, including the dashboard, and running it again updates. While the repository is private, sign in with ``gh auth login`` first, or get it with ``gh release download $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --pattern install.sh``.
+          **Linux and macOS:** run install.sh (``bash install.sh``). It installs everything, including the dashboard, and running it again updates: ``curl -fsSL https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/install.sh | bash``
 
           Upgrading from StrixRun keeps your models, settings and API key.
           "@
