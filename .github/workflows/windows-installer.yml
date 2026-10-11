@@ -196,6 +196,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if ([IO.File]::ReadAllText("installer\install.sh").Contains("`r")) { throw "install.sh has CRLF line endings; bash can't run it" }
           $files = @((Get-ChildItem out\*.exe).FullName, (Get-ChildItem dist\*.whl).FullName, "installer\install.sh")
           $notes = @"
           **Windows:** download EnjroRun-Setup-$env:VERSION.exe and run it. No admin rights needed.
