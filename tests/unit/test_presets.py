@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from strixrun.presets import Preset, PresetError, PresetStore, default_preset, llama_args
+from enjrorun.presets import Preset, PresetError, PresetStore, default_preset, gpu_env, llama_args
 
 
 def test_defaults_cap_context_and_detect_embedding():
@@ -138,3 +138,19 @@ def test_unified_kv_by_default_uses_one_pool(tmp_path):
 def test_llama_server_logs_layer_placement(tmp_path):
     args = llama_args(Preset(), tmp_path)
     assert args[args.index("-lv") + 1] == "4"  # shows 'offloaded X/Y layers to GPU'
+
+
+def test_gpus_default_to_all_and_validate():
+    assert Preset().gpus is None
+    assert Preset.from_dict({"gpus": [1]}).gpus == [1]
+    Preset(gpus=[0, 1]).validate()
+    for bad in ([], [-1], [16], [0, 0], ["1"], [True], "1"):
+        with pytest.raises(PresetError):
+            Preset(gpus=bad).validate()
+
+
+def test_gpu_env_orders_cuda_like_nvidia_smi_and_limits_devices():
+    assert gpu_env(Preset()) == {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"}
+    assert gpu_env(Preset(gpus=[1])) == {"CUDA_DEVICE_ORDER": "PCI_BUS_ID", "CUDA_VISIBLE_DEVICES": "1"}
+    assert gpu_env(Preset(gpus=[0, 1]))["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert "CUDA_VISIBLE_DEVICES" not in gpu_env(Preset(gpus=[1], n_gpu_layers=0))  # CPU only

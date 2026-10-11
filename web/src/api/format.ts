@@ -23,6 +23,7 @@ export function fmtDuration(s: number | null | undefined): string {
 }
 
 export function fmtCtx(n: number): string {
+  if (n >= 1048576 && n % 1048576 === 0) return `${n / 1048576}M`;
   return n >= 1024 && n % 1024 === 0 ? `${n / 1024}k` : String(n);
 }
 

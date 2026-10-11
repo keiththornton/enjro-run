@@ -2,7 +2,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from strixrun import errors as E
+from enjrorun import errors as E
 
 
 def make_app(exc: Exception) -> TestClient:
@@ -42,7 +42,7 @@ def test_error_shapes(exc, status, etype, code):
 def test_not_loaded_message_names_both_actions():
     r = make_app(E.ModelNotLoaded("qwen:q4")).get("/boom")
     msg = r.json()["error"]["message"]
-    assert "dashboard" in msg and "strixrun load qwen:q4" in msg
+    assert "dashboard" in msg and "enjrorun load qwen:q4" in msg
 
 
 def test_crashed_message_includes_reason():

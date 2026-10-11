@@ -1,7 +1,7 @@
 import asyncio
 
-from strixrun.context import AppContext
-from strixrun.events import EventBus
+from enjrorun.context import AppContext
+from enjrorun.events import EventBus
 
 
 async def test_multiple_queue_subscribers_receive_event():

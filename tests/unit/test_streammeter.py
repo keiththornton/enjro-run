@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from strixrun.streammeter import StreamMeter, meter_json
+from enjrorun.streammeter import StreamMeter, meter_json
 
 CHUNKS = Path(__file__).resolve().parents[1] / "fixtures" / "chunks"
 

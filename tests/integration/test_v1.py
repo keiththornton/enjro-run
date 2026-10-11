@@ -7,13 +7,13 @@ import httpx
 import openai
 import pytest
 
-from strixrun import paths
-from strixrun.app import create_app
-from strixrun.backend import procutil
-from strixrun.backend.base import ModelStatus
-from strixrun.presets import Preset, PresetStore
-from strixrun.registry import ModelEntry, Registry
-from strixrun.settings import SettingsError, SettingsStore
+from enjrorun import paths
+from enjrorun.app import create_app
+from enjrorun.backend import procutil
+from enjrorun.backend.base import ModelStatus
+from enjrorun.presets import Preset, PresetStore
+from enjrorun.registry import ModelEntry, Registry
+from enjrorun.settings import SettingsError, SettingsStore
 from tests.fixtures.make_tiny_gguf import write_gguf
 
 from .conftest import serve_app
@@ -25,7 +25,7 @@ EMB_ID, EMB_ALIAS = "test--emb--q4", "emb:q4"
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     reg = Registry(paths.registry_path())
     reg.add(ModelEntry(id=CHAT_ID, aliases=[CHAT_ALIAS, "gpt-4o-mini"], paths=["/m/chat.gguf"], size_bytes=1))
     reg.add(ModelEntry(id=EMB_ID, aliases=[EMB_ALIAS], paths=["/m/emb.gguf"], size_bytes=1))
@@ -102,7 +102,7 @@ async def test_models_all_lists_unloaded_with_status(home):
         data = (await c.get(f"{url}/v1/models?all=1")).json()["data"]
     by_id = {d["id"]: d for d in data}
     assert by_id[CHAT_ALIAS]["status"] == "stopped"
-    assert by_id[CHAT_ALIAS]["strixrun_id"] == CHAT_ID
+    assert by_id[CHAT_ALIAS]["enjrorun_id"] == CHAT_ID
 
 
 async def test_not_loaded_error_through_sdk(home):
@@ -110,7 +110,7 @@ async def test_not_loaded_error_through_sdk(home):
         client = openai.AsyncOpenAI(base_url=f"{url}/v1", api_key="x")
         with pytest.raises(openai.ConflictError) as exc:
             await client.chat.completions.create(model=CHAT_ALIAS, messages=[])
-    assert "strixrun load chat:q4" in str(exc.value)
+    assert "enjrorun load chat:q4" in str(exc.value)
 
 
 async def test_unknown_api_path_is_json_404_not_spa(home):
@@ -160,7 +160,7 @@ def test_lan_host_without_key_refuses_to_start(home):
     s = store.load()
     s.host = "0.0.0.0"
     store.save(s)
-    with pytest.raises(SettingsError, match="strixrun key set"):
+    with pytest.raises(SettingsError, match="enjrorun key set"):
         create_app()
 
 
@@ -179,7 +179,7 @@ async def test_scan_dirs_are_registered_on_startup(home):
 
 
 async def test_dashboard_cache_headers(home, tmp_path, monkeypatch):
-    from strixrun import app as app_module
+    from enjrorun import app as app_module
 
     dist = tmp_path / "web_dist"
     (dist / "assets").mkdir(parents=True)
@@ -194,7 +194,7 @@ async def test_dashboard_cache_headers(home, tmp_path, monkeypatch):
 
 
 async def test_second_instance_refuses_without_touching_the_first(home):
-    from strixrun.instance import AlreadyRunning
+    from enjrorun.instance import AlreadyRunning
 
     first = app()
     async with serve_app(first):

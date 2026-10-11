@@ -1,7 +1,7 @@
 name: windows-installer
 
-# Builds StrixRun-Setup-<version>.exe, then installs it on a real Windows runner,
-# starts StrixRun, checks the API and dashboard, stops it and uninstalls.
+# Builds EnjroRun-Setup-<version>.exe, then installs it on a real Windows runner,
+# starts Enjro Run, checks the API and dashboard, stops it and uninstalls.
 # Pushing a v* tag also attaches the installer to a GitHub Release.
 
 on:
@@ -41,8 +41,8 @@ jobs:
           "WHEEL=$wheel" >> $env:GITHUB_ENV
           New-Item -ItemType Directory staging | Out-Null
           Copy-Item "dist\$wheel" staging\
-          Copy-Item installer\windows\strixrun.ico staging\
-          Copy-Item installer\windows\StrixRun.pyw staging\
+          Copy-Item installer\windows\enjrorun.ico staging\
+          Copy-Item installer\windows\EnjroRun.pyw staging\
           $zip = "uv.zip"
           Invoke-WebRequest "https://github.com/astral-sh/uv/releases/download/$env:UV_VERSION/uv-x86_64-pc-windows-msvc.zip" -OutFile $zip
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:VERSION" "/DWheel=$env:WHEEL" `
-            "/DSourceDir=$pwd\staging" "/O$pwd\out" installer\windows\StrixRun.iss
+            "/DSourceDir=$pwd\staging" "/O$pwd\out" installer\windows\EnjroRun.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
           Get-ChildItem out
 
@@ -65,10 +65,10 @@ jobs:
         shell: pwsh
         timeout-minutes: 15
         run: |
-          $setup = "out\StrixRun-Setup-$env:VERSION.exe"
-          $app = "$env:LOCALAPPDATA\Programs\StrixRun"
+          $setup = "out\EnjroRun-Setup-$env:VERSION.exe"
+          $app = "$env:LOCALAPPDATA\Programs\EnjroRun"
           # Wait for one process only: Start-Process -Wait also waits for every child it
-          # spawned, and `strixrun open` deliberately leaves the server running.
+          # spawned, and `enjrorun open` deliberately leaves the server running.
           function Run-AndWait($file, $argList, $seconds) {
             $p = Start-Process $file -ArgumentList $argList -PassThru
             if (-not $p.WaitForExit($seconds * 1000)) { throw "$file $argList did not finish within ${seconds}s" }
@@ -78,36 +78,36 @@ jobs:
           Write-Host "installer exit code $code"
           if (Test-Path "$app\install-uv.log") { Write-Host "--- install-uv.log"; Get-Content "$app\install-uv.log" -Tail 15 }
           Select-String -Path "$env:TEMP\Setup Log*.txt" -Pattern "Managed Python|exit code" | Select-Object -Last 4 | ForEach-Object { $_.Line }
-          if (-not (Test-Path "$app\bin\strixrun.exe")) { Get-Content install.log -Tail 40; throw "strixrun.exe missing" }
-          schtasks /Query /TN StrixRun | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "sign-in task (StrixRun) was not created" }
-          if (-not (Test-Path "$app\tools\strixrun\Scripts\pythonw.exe")) { throw "pythonw.exe missing (Start Menu shortcuts need it)" }
+          if (-not (Test-Path "$app\bin\enjrorun.exe")) { Get-Content install.log -Tail 40; throw "enjrorun.exe missing" }
+          schtasks /Query /TN EnjroRun | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "sign-in task (EnjroRun) was not created" }
+          if (-not (Test-Path "$app\tools\enjrorun\Scripts\pythonw.exe")) { throw "pythonw.exe missing (Start Menu shortcuts need it)" }
           $path = (Get-ItemProperty HKCU:\Environment).Path
           if ($path -notlike "*$app\bin*") { throw "PATH not updated: $path" }
-          & "$app\bin\strixrun.exe" version
+          & "$app\bin\enjrorun.exe" version
           # Start it the way the Start Menu shortcut does: no console window.
-          $code = Run-AndWait "$app\tools\strixrun\Scripts\pythonw.exe" @("$app\StrixRun.pyw", 'open', '--no-browser') 120
-          if ($code -ne 0) { Get-Content "$env:USERPROFILE\.strix\run\logs\serve.log" -Tail 40; throw "strixrun open exited $code" }
+          $code = Run-AndWait "$app\tools\enjrorun\Scripts\pythonw.exe" @("$app\EnjroRun.pyw", 'open', '--no-browser') 120
+          if ($code -ne 0) { Get-Content "$env:USERPROFILE\.enjro\run\logs\serve.log" -Tail 40; throw "enjrorun open exited $code" }
           $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
           if ($models.object -ne "list") { throw "unexpected /v1/models: $models" }
           $page = Invoke-WebRequest http://127.0.0.1:8790/ -UseBasicParsing
-          if ($page.Content -notlike "*<title>StrixRun</title>*") { throw "dashboard not served" }
-          # Upgrade while StrixRun is running (the usual case): install again over it.
+          if ($page.Content -notlike "*<title>Enjro Run</title>*") { throw "dashboard not served" }
+          # Upgrade while Enjro Run is running (the usual case): install again over it.
           $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath,startup', '/LOG=upgrade.log') 600
           Write-Host "upgrade installer exit code $code"
-          Select-String -Path upgrade.log -Pattern "Stopping a running|strixrun stop exited|closed leftover" | ForEach-Object { $_.Line }
-          # Click the shortcut again and check StrixRun starts on the upgraded install.
-          $code = Run-AndWait "$app\tools\strixrun\Scripts\pythonw.exe" @("$app\StrixRun.pyw", 'open', '--no-browser') 120
+          Select-String -Path upgrade.log -Pattern "Stopping a running|enjrorun stop exited|closed leftover" | ForEach-Object { $_.Line }
+          # Click the shortcut again and check Enjro Run starts on the upgraded install.
+          $code = Run-AndWait "$app\tools\enjrorun\Scripts\pythonw.exe" @("$app\EnjroRun.pyw", 'open', '--no-browser') 120
           if ($code -ne 0 -or (Test-Path "$app\launch-error.log")) {
             if (Test-Path "$app\launch-error.log") { Get-Content "$app\launch-error.log" }
-            throw "StrixRun does not start after an upgrade"
+            throw "Enjro Run does not start after an upgrade"
           }
           $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
           if ($models.object -ne "list") { throw "API not answering after an upgrade" }
-          & "$app\bin\strixrun.exe" stop
+          & "$app\bin\enjrorun.exe" stop
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "--- serve.log"; Get-Content "$env:USERPROFILE\.strix\run\logs\serve.log" -Tail 40 -ErrorAction SilentlyContinue
-            Write-Host "--- processes"; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*strixrun*" } | Select-Object ProcessId, ParentProcessId, CommandLine | Format-List
+            Write-Host "--- serve.log"; Get-Content "$env:USERPROFILE\.enjro\run\logs\serve.log" -Tail 40 -ErrorAction SilentlyContinue
+            Write-Host "--- processes"; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*enjrorun*" } | Select-Object ProcessId, ParentProcessId, CommandLine | Format-List
             throw "stop failed"
           }
           $null = Run-AndWait "$app\unins000.exe" @('/VERYSILENT', '/SUPPRESSMSGBOXES') 300
@@ -115,21 +115,99 @@ jobs:
           if (Test-Path "$app\bin") { throw "uninstall left $app\bin behind" }
           $path = (Get-ItemProperty HKCU:\Environment).Path
           if ($path -like "*$app\bin*") { throw "uninstall left PATH entry" }
-          schtasks /Query /TN StrixRun 2>$null | Out-Null
-          if ($LASTEXITCODE -eq 0) { throw "uninstall left the StrixRun sign-in task" }
+          schtasks /Query /TN EnjroRun 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "uninstall left the Enjro Run sign-in task" }
           $global:LASTEXITCODE = 0
           Write-Host "Installer round trip OK"
 
+      - name: Upgrade a StrixRun install (before the rename)
+        shell: pwsh
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = "out\EnjroRun-Setup-$env:VERSION.exe"
+          $old = "$env:LOCALAPPDATA\Programs\StrixRun"
+          $app = "$env:LOCALAPPDATA\Programs\EnjroRun"
+          function Run-AndWait($file, $argList, $seconds) {
+            $p = Start-Process $file -ArgumentList $argList -PassThru
+            if (-not $p.WaitForExit($seconds * 1000)) { throw "$file $argList did not finish within ${seconds}s" }
+            return $p.ExitCode
+          }
+          # The round trip above keeps its data on uninstall; start from a machine that only had StrixRun.
+          Remove-Item -Recurse -Force "$env:USERPROFILE\.enjro" -ErrorAction SilentlyContinue
+          gh release download v0.1.8 --repo $env:GITHUB_REPOSITORY --pattern "StrixRun-Setup-*.exe" --dir legacy
+          $legacySetup = (Get-ChildItem legacy\StrixRun-Setup-*.exe | Select-Object -First 1).FullName
+          $null = Run-AndWait $legacySetup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath,startup') 600
+          if (-not (Test-Path "$old\bin\strixrun.exe")) { throw "StrixRun 0.1.8 did not install" }
+          # Change a setting before starting it: a running 0.1.8 server can save its own copy
+          # of the settings over edits made while it runs.
+          & "$old\bin\strixrun.exe" config set log_retention_days 9
+          $code = Run-AndWait "$old\tools\strixrun\Scripts\pythonw.exe" @("$old\StrixRun.pyw", 'open', '--no-browser') 120
+          if ($code -ne 0) { throw "StrixRun 0.1.8 did not start" }
+          New-Item -ItemType File "$env:USERPROFILE\.strix\run\models\marker.txt" -Force | Out-Null
+
+          # Install Enjro Run over the running StrixRun, without asking for the sign-in task:
+          # the StrixRun task must be carried over anyway.
+          $code = Run-AndWait $setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=addtopath', '/LOG=legacy-upgrade.log') 600
+          Write-Host "upgrade installer exit code $code"
+          Select-String -Path legacy-upgrade.log -Pattern "StrixRun|strixrun|migrate" | ForEach-Object { $_.Line }
+          if (Test-Path "$app\migrate.log") { Write-Host "--- migrate.log"; Get-Content "$app\migrate.log" }
+          if (-not (Test-Path "$app\bin\enjrorun.exe")) { throw "enjrorun.exe missing after upgrading StrixRun" }
+          if (Test-Path "$old\bin") { throw "the StrixRun program folder was left behind" }
+          if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\StrixRun") { throw "StrixRun shortcuts left behind" }
+          if (-not (Test-Path "$env:USERPROFILE\.enjro\run\models\marker.txt")) { throw "models were not moved to .enjro" }
+          if (Test-Path "$env:USERPROFILE\.strix\run") { throw ".strix\run was left behind" }
+          $config = Get-Content "$env:USERPROFILE\.enjro\run\config.json" -Raw | ConvertFrom-Json
+          if ($config.log_retention_days -ne 9) { throw "settings were not carried over" }
+          if ($config.models_dirs[0] -notlike "*\.enjro\run\models") { throw "models_dirs not rewritten: $($config.models_dirs)" }
+          schtasks /Query /TN StrixRun 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "the StrixRun sign-in task was left behind" }
+          schtasks /Query /TN EnjroRun | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "the sign-in task was not carried over to EnjroRun" }
+          $path = (Get-ItemProperty HKCU:\Environment).Path
+          if ($path -like "*$old\bin*") { throw "StrixRun PATH entry left behind" }
+          $uninstall = Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall |
+            Get-ItemProperty | Where-Object { $_.DisplayName -like "StrixRun*" -or $_.DisplayName -like "Enjro Run*" }
+          if (@($uninstall).Count -ne 1 -or $uninstall.DisplayName -notlike "Enjro Run*") { throw "expected one Enjro Run entry in Apps: $($uninstall.DisplayName)" }
+
+          $code = Run-AndWait "$app\tools\enjrorun\Scripts\pythonw.exe" @("$app\EnjroRun.pyw", 'open', '--no-browser') 120
+          if ($code -ne 0) { Get-Content "$env:USERPROFILE\.enjro\run\logs\serve.log" -Tail 40; throw "Enjro Run did not start after upgrading StrixRun" }
+          $models = Invoke-RestMethod http://127.0.0.1:8790/v1/models
+          if ($models.object -ne "list") { throw "API not answering after upgrading StrixRun" }
+          & "$app\bin\enjrorun.exe" stop
+          $null = Run-AndWait "$app\unins000.exe" @('/VERYSILENT', '/SUPPRESSMSGBOXES') 300
+          $global:LASTEXITCODE = 0
+          Write-Host "StrixRun upgrade OK"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: StrixRun-Setup
-          path: out/*.exe
+          name: EnjroRun-Setup
+          path: |
+            out/*.exe
+            dist/*.whl
 
+      # The release carries everything: the Windows installer, the prebuilt wheel
+      # (dashboard included) that installer/install.sh installs on Linux and macOS, and
+      # install.sh itself. Uploads replace files on an existing release, so a re-run works.
       - name: Attach to a GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME out\*.exe --title "StrixRun $env:GITHUB_REF_NAME" `
-            --notes "Windows: download StrixRun-Setup-$env:VERSION.exe and run it. No admin rights needed. The first install downloads Python and packages (about a minute)."
+          $files = @((Get-ChildItem out\*.exe).FullName, (Get-ChildItem dist\*.whl).FullName, "installer\install.sh")
+          $notes = @"
+          **Windows:** download EnjroRun-Setup-$env:VERSION.exe and run it. No admin rights needed.
+
+          **Linux and macOS:** run install.sh (``bash install.sh``). It installs everything, including the dashboard, and running it again updates. While the repository is private, sign in with ``gh auth login`` first, or get it with ``gh release download $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --pattern install.sh``.
+
+          Upgrading from StrixRun keeps your models, settings and API key.
+          "@
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME @files --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME @files --title "Enjro Run $env:GITHUB_REF_NAME" --notes $notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "release upload failed" }

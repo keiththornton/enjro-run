@@ -1,7 +1,7 @@
 """End-to-end: real llama-server, real models, official OpenAI SDK.
 
 Opt-in: uv run pytest -m e2e
-STRIXRUN_E2E_HOME selects the StrixRun home (default ~/.cache/strixrun-e2e), so the
+ENJRORUN_E2E_HOME selects the Enjro Run home (default ~/.cache/enjrorun-e2e), so the
 binary and ~1.2 GB of models are downloaded once and reused (CI caches this folder).
 """
 
@@ -16,7 +16,7 @@ import openai
 import pytest
 import pytest_asyncio
 
-from strixrun.app import create_app
+from enjrorun.app import create_app
 from tests.integration.conftest import serve_app
 
 pytestmark = [pytest.mark.e2e, pytest.mark.asyncio(loop_scope="module")]
@@ -38,14 +38,14 @@ async def wait_for(predicate, timeout: float, what: str):
 
 @pytest.fixture(scope="module")
 def e2e_home():
-    home = Path(os.environ.get("STRIXRUN_E2E_HOME", Path.home() / ".cache" / "strixrun-e2e"))
-    old = os.environ.get("STRIX_HOME")
-    os.environ["STRIX_HOME"] = str(home)
+    home = Path(os.environ.get("ENJRORUN_E2E_HOME", Path.home() / ".cache" / "enjrorun-e2e"))
+    old = os.environ.get("ENJRO_HOME")
+    os.environ["ENJRO_HOME"] = str(home)
     yield home
     if old is None:
-        os.environ.pop("STRIX_HOME", None)
+        os.environ.pop("ENJRO_HOME", None)
     else:
-        os.environ["STRIX_HOME"] = old
+        os.environ["ENJRO_HOME"] = old
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
@@ -56,7 +56,7 @@ async def server(e2e_home):
         await wait_for(ctx.binaries.command, SETUP_TIMEOUT_S, "llama-server install")
         for repo, quant in ((CHAT_REPO, CHAT_QUANT), (EMB_REPO, EMB_QUANT)):
             owner, name = repo.split("/")
-            from strixrun.registry import make_id
+            from enjrorun.registry import make_id
 
             model_id = make_id(owner, name, quant)
             if ctx.registry.get(model_id) is None:

@@ -25,7 +25,7 @@ export function KeyPrompt() {
         <Dialog.Content className="dialog key-dialog" aria-describedby="key-desc" onEscapeKeyDown={(e) => e.preventDefault()}>
           <Dialog.Title className="dialog-title">Enter the API key</Dialog.Title>
           <Dialog.Description id="key-desc" className="dialog-description">
-            This StrixRun is shared on your network. Paste its API key to use the dashboard from this device.
+            This Enjro Run is shared on your network. Paste its API key to use the dashboard from this device.
           </Dialog.Description>
           <form onSubmit={submit} className="key-form">
             <label className="sr-only" htmlFor="api-key">API key</label>
@@ -36,7 +36,7 @@ export function KeyPrompt() {
                 className="text-field text-field-mono"
                 type="password"
                 autoComplete="current-password"
-                placeholder="sk-strix-…"
+                placeholder="sk-enjro-…"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
                 autoFocus

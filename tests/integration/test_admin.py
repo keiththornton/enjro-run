@@ -6,11 +6,11 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun import paths
-from strixrun.app import create_app
-from strixrun.presets import Preset, PresetStore
-from strixrun.registry import ModelEntry, Registry
-from strixrun.settings import SettingsStore
+from enjrorun import paths
+from enjrorun.app import create_app
+from enjrorun.presets import Preset, PresetStore
+from enjrorun.registry import ModelEntry, Registry
+from enjrorun.settings import SettingsStore
 
 from .conftest import serve_app
 
@@ -21,7 +21,7 @@ JSON = {"Content-Type": "application/json"}
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     Registry(paths.registry_path()).add(
         ModelEntry(id=MID, aliases=[ALIAS], paths=["/m/chat.gguf"], size_bytes=1)
     )
@@ -184,7 +184,7 @@ async def test_session_without_key_configured(home):
 
 
 async def test_estimate_and_confirmation_gate(home):
-    from strixrun.memory import MemoryEstimator
+    from enjrorun.memory import MemoryEstimator
     from tests.unit.test_memory import FakeProbe
 
     a = app()
@@ -229,12 +229,13 @@ async def test_discover_route_with_fake_hub(home):
 
 
 async def test_system_info_reports_detected_memory(home):
-    from strixrun.memory import MemoryEstimator
+    from enjrorun.memory import MemoryEstimator
     from tests.unit.test_memory import FakeProbe
 
     class Probe(FakeProbe):
         def gpus(self):
-            return [{"name": "NVIDIA GeForce RTX 3090", "total_bytes": 24 * 1024**3, "free_bytes": 23 * 1024**3}]
+            return [{"index": 0, "name": "NVIDIA GeForce RTX 3090", "total_bytes": 24 * 1024**3,
+                     "free_bytes": 23 * 1024**3}]
 
     a = app()
     async with serve_app(a) as url, httpx.AsyncClient(base_url=url) as c:
@@ -247,7 +248,7 @@ async def test_system_info_reports_detected_memory(home):
 
 
 async def test_fit_endpoint(home):
-    from strixrun.memory import MemoryEstimator
+    from enjrorun.memory import MemoryEstimator
     from tests.unit.test_memory import FakeProbe
 
     a = app()

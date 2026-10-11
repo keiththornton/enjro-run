@@ -1,4 +1,4 @@
-// Fetch wrapper for the StrixRun admin and /v1 APIs.
+// Fetch wrapper for the Enjro Run admin and /v1 APIs.
 import { requireKey } from "./auth";
 
 export class ApiError extends Error {

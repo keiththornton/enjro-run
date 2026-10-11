@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from strixrun.registry import (
+from enjrorun.registry import (
     ModelEntry,
     Registry,
     RegistryError,
@@ -147,7 +147,7 @@ def test_refresh_stale_meta(tmp_path):
     f = write_gguf(tmp_path / "m.gguf")
     reg = Registry(tmp_path / "models.json")
     old = reg.add(ModelEntry(id="x--m--q4", aliases=["m"], paths=[str(f)], size_bytes=1,
-                             meta={"architecture": "llama"}))  # parsed by an older StrixRun
+                             meta={"architecture": "llama"}))  # parsed by an older Enjro Run
     gone = reg.add(ModelEntry(id="x--gone--q4", aliases=["g"], paths=[str(tmp_path / "missing.gguf")],
                               size_bytes=1, meta={}))
     assert reg.refresh_stale_meta() == [old.id]

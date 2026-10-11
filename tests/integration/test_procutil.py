@@ -8,7 +8,7 @@ import httpx
 import psutil
 import pytest
 
-from strixrun.backend import procutil
+from enjrorun.backend import procutil
 
 TESTS = Path(__file__).resolve().parents[1]
 FAKE = str(TESTS / "fake_llama_server.py")

@@ -130,7 +130,7 @@ export function QuantTable({ listing, jobs, installed }: { listing: RepoListing;
         </p>
       )}
       {listing.quants.length === 0 ? (
-        <p className="meta">This repo has no GGUF files StrixRun can load.</p>
+        <p className="meta">This repo has no GGUF files Enjro Run can load.</p>
       ) : (
         <table>
           <thead>

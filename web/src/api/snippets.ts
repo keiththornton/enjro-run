@@ -10,7 +10,7 @@ export type SnippetContext = {
   keyRequired: boolean;
 };
 
-const KEY_ENV = "STRIXRUN_API_KEY";
+const KEY_ENV = "ENJRORUN_API_KEY";
 
 function curlAuth(c: SnippetContext) {
   return c.keyRequired ? ` \\\n  -H "Authorization: Bearer $${KEY_ENV}"` : "";
@@ -195,7 +195,7 @@ console.log(result.data[0].embedding.length);`;
 export type AppGuide = { name: string; steps: string[]; code?: string; codeLabel?: string };
 
 export function appGuides(c: SnippetContext): AppGuide[] {
-  const key = c.keyRequired ? "your StrixRun API key" : "any text (no key needed)";
+  const key = c.keyRequired ? "your Enjro Run API key" : "any text (no key needed)";
   return [
     {
       name: "Open WebUI",
@@ -203,7 +203,7 @@ export function appGuides(c: SnippetContext): AppGuide[] {
         "Open Admin settings → Connections.",
         `Add an OpenAI API connection with the URL ${c.baseUrl}.`,
         `For the key, enter ${key}.`,
-        "Save. StrixRun's loaded models appear in the model picker.",
+        "Save. Enjro Run's loaded models appear in the model picker.",
       ],
     },
     {
@@ -211,15 +211,15 @@ export function appGuides(c: SnippetContext): AppGuide[] {
       steps: ["Add this to your Continue config.yaml:"],
       codeLabel: "config.yaml",
       code: `models:
-  - name: ${c.model} (StrixRun)
+  - name: ${c.model} (Enjro Run)
     provider: openai
     model: ${c.model}
     apiBase: ${c.baseUrl}
-    apiKey: ${c.keyRequired ? "<your StrixRun API key>" : "not-needed"}`,
+    apiKey: ${c.keyRequired ? "<your Enjro Run API key>" : "not-needed"}`,
     },
     {
       name: "LangChain",
-      steps: ["Use ChatOpenAI with StrixRun as the base URL:"],
+      steps: ["Use ChatOpenAI with Enjro Run as the base URL:"],
       codeLabel: "Python",
       code: `${c.keyRequired ? "import os\n" : ""}from langchain_openai import ChatOpenAI
 
@@ -229,11 +229,11 @@ print(llm.invoke("Hello!").content)`,
     },
     {
       name: "llm (command line)",
-      steps: ["Add this to extra-openai-models.yaml in llm's config folder (`llm logs path` shows where), then run llm -m strixrun \"Hello\":"],
+      steps: ["Add this to extra-openai-models.yaml in llm's config folder (`llm logs path` shows where), then run llm -m enjrorun \"Hello\":"],
       codeLabel: "extra-openai-models.yaml",
-      code: `- model_id: strixrun
+      code: `- model_id: enjrorun
   model_name: ${c.model}
-  api_base: "${c.baseUrl}"${c.keyRequired ? `\n  api_key_name: strixrun   # set it with: llm keys set strixrun` : ""}`,
+  api_base: "${c.baseUrl}"${c.keyRequired ? `\n  api_key_name: enjrorun   # set it with: llm keys set enjrorun` : ""}`,
     },
     {
       name: "Anything else OpenAI-compatible",

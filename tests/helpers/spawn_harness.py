@@ -7,7 +7,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-from strixrun.backend import procutil
+from enjrorun.backend import procutil
 
 FAKE = str(Path(__file__).resolve().parents[1] / "fake_llama_server.py")
 

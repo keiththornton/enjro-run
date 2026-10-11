@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun.gguf_meta import GGUFError, NeedMore, parse_header, read_local_meta, read_remote_meta
+from enjrorun.gguf_meta import GGUFError, NeedMore, parse_header, read_local_meta, read_remote_meta
 from tests.fixtures.make_tiny_gguf import write_gguf
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "tiny.gguf"

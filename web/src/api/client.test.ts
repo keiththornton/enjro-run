@@ -38,7 +38,7 @@ describe("api", () => {
     });
     const pending = api<{ data: number[] }>("/admin/models");
     await vi.waitFor(() => expect(calls).toBe(1));
-    expect(await signIn("sk-strix-good")).toBeNull();
+    expect(await signIn("sk-enjro-good")).toBeNull();
     expect(await pending).toEqual({ data: [1] });
     expect(calls).toBe(2);
   });

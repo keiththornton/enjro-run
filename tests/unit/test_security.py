@@ -5,8 +5,8 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from strixrun.security import SecurityMiddleware, session_cookie_value, set_session_cookie
-from strixrun.settings import Settings, generate_api_key, hash_api_key
+from enjrorun.security import SecurityMiddleware, session_cookie_value, set_session_cookie
+from enjrorun.settings import Settings, generate_api_key, hash_api_key
 
 KEY = generate_api_key()
 SECRET = b"s" * 32
@@ -35,7 +35,7 @@ def build(settings: Settings) -> FastAPI:
     async def session(request: Request):
         body = await request.json()
         resp = JSONResponse({"ok": body.get("key") == KEY})
-        resp.set_cookie("strixrun_session", session_cookie_value(SECRET, settings.api_key_hash),
+        resp.set_cookie("enjrorun_session", session_cookie_value(SECRET, settings.api_key_hash),
                         httponly=True, samesite="strict")
         return resp
 
@@ -66,7 +66,7 @@ LOCAL = Settings()  # loopback, no key
 LAN = Settings(host="0.0.0.0", api_key_hash=hash_api_key(KEY))
 LAN_STRICT = Settings(host="0.0.0.0", api_key_hash=hash_api_key(KEY), trust_loopback=False)
 # A tunnel on this machine (e.g. cloudflared) forwards internet traffic from loopback.
-TUNNEL = Settings(api_key_hash=hash_api_key(KEY), public_hosts=["strix.example.com"])
+TUNNEL = Settings(api_key_hash=hash_api_key(KEY), public_hosts=["enjro.example.com"])
 
 
 # ---- host guard (DNS rebinding) ---------------------------------------------------------
@@ -87,13 +87,13 @@ async def test_loopback_hosts_allowed(host):
 
 
 async def test_lan_ip_host_allowed_when_listening_on_lan(monkeypatch):
-    monkeypatch.setattr("strixrun.security.local_addresses", lambda: {"192.168.1.10"})
+    monkeypatch.setattr("enjrorun.security.local_addresses", lambda: {"192.168.1.10"})
     async with client(build(LAN), peer="192.168.1.20", host="192.168.1.10:8790") as c:
         r = await c.get("/v1/models", headers={"Authorization": f"Bearer {KEY}"})
     assert r.status_code == 200
 
 
-@pytest.mark.parametrize("host", ["strix.example.com", "STRIX.example.com:443"])
+@pytest.mark.parametrize("host", ["enjro.example.com", "ENJRO.example.com:443"])
 async def test_public_host_allowed(host):
     async with client(build(TUNNEL), host=host) as c:
         r = await c.get("/v1/models", headers={"Authorization": f"Bearer {KEY}"})
@@ -101,12 +101,12 @@ async def test_public_host_allowed(host):
 
 
 async def test_public_host_not_allowed_unless_configured():
-    async with client(build(LAN), host="strix.example.com") as c:
+    async with client(build(LAN), host="enjro.example.com") as c:
         assert (await c.get("/v1/models")).status_code == 403
 
 
 async def test_public_host_never_trusts_loopback():
-    async with client(build(TUNNEL), host="strix.example.com") as c:
+    async with client(build(TUNNEL), host="enjro.example.com") as c:
         assert (await c.get("/admin/ps")).status_code == 401
         assert (await c.get("/v1/models")).status_code == 401
     async with client(build(TUNNEL), host="127.0.0.1:8790") as c:  # local use still trusted
@@ -114,14 +114,14 @@ async def test_public_host_never_trusts_loopback():
 
 
 async def test_public_host_same_origin_post_allowed():
-    async with client(build(TUNNEL), host="strix.example.com") as c:
+    async with client(build(TUNNEL), host="enjro.example.com") as c:
         r = await c.post("/admin/models/x/unload", json={},
-                         headers={"Origin": "https://strix.example.com",
+                         headers={"Origin": "https://enjro.example.com",
                                   "Authorization": f"Bearer {KEY}"})
     assert r.status_code == 200
 
 
-@pytest.mark.parametrize(("host", "secure"), [("strix.example.com", True), ("127.0.0.1:8790", False)])
+@pytest.mark.parametrize(("host", "secure"), [("enjro.example.com", True), ("127.0.0.1:8790", False)])
 async def test_session_cookie_secure_on_public_host(host, secure):
     app = FastAPI()
     app.state.session_secret = SECRET
@@ -246,7 +246,7 @@ async def test_session_cookie_flow():
 
 async def test_forged_cookie_rejected():
     async with client(build(LAN), peer="192.168.1.20", host="localhost:8790") as c:
-        c.cookies.set("strixrun_session", "forged")
+        c.cookies.set("enjrorun_session", "forged")
         assert (await c.get("/admin/ps")).status_code == 401
 
 
@@ -256,7 +256,7 @@ async def test_rotated_key_invalidates_cookie():
     old_cookie = session_cookie_value(SECRET, settings.api_key_hash)
     settings.api_key_hash = hash_api_key(generate_api_key())
     async with client(app, peer="192.168.1.20", host="localhost:8790") as c:
-        c.cookies.set("strixrun_session", old_cookie)
+        c.cookies.set("enjrorun_session", old_cookie)
         assert (await c.get("/admin/ps")).status_code == 401
 
 

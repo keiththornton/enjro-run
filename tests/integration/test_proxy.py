@@ -6,12 +6,12 @@ import httpx
 import pytest
 from fastapi import FastAPI, Request
 
-from strixrun import errors as E
-from strixrun.backend.base import ModelState, ModelStatus, Target
-from strixrun.events import EventBus
-from strixrun.presets import Preset
-from strixrun.proxy import Proxy, RequestMeta
-from strixrun.registry import ModelEntry, Registry
+from enjrorun import errors as E
+from enjrorun.backend.base import ModelState, ModelStatus, Target
+from enjrorun.events import EventBus
+from enjrorun.presets import Preset
+from enjrorun.proxy import Proxy, RequestMeta
+from enjrorun.registry import ModelEntry, Registry
 
 from .conftest import fake_server, serve_app
 
@@ -159,7 +159,7 @@ async def test_upstream_error_status_passed_through(registry, bus):
 
 
 async def test_502_when_child_unreachable(registry, bus):
-    from strixrun.backend import procutil
+    from enjrorun.backend import procutil
 
     backend = ready_backend(f"http://127.0.0.1:{procutil.free_port()}", "k")
     async with serve_app(make_app(Proxy(registry, backend, bus))) as url:

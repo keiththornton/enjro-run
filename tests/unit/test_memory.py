@@ -2,9 +2,9 @@ from dataclasses import dataclass
 
 import pytest
 
-from strixrun.memory import CACHE_BYTES, MemoryEstimator
-from strixrun.presets import Preset
-from strixrun.registry import ModelEntry
+from enjrorun.memory import CACHE_BYTES, MemoryEstimator
+from enjrorun.presets import Preset
+from enjrorun.registry import ModelEntry
 
 GiB = 1024**3
 
@@ -120,7 +120,7 @@ def test_verdicts(size, verdict):
 def test_macos_available_uses_memorystatus_level(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(memory.psutil, "virtual_memory",
@@ -132,7 +132,7 @@ def test_macos_available_uses_memorystatus_level(monkeypatch):
 def test_non_macos_available_is_psutil(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.platform, "system", lambda: "Linux")
     monkeypatch.setattr(memory.psutil, "virtual_memory",
@@ -209,25 +209,74 @@ def test_low_free_vram_is_explained():
     assert est["vram_free_bytes"] == 2 * GiB
 
 
-def test_nvidia_free_sums_all_gpus(monkeypatch):
+def test_nvidia_smi_lists_each_gpu_with_its_index(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.shutil, "which", lambda name: "nvidia-smi")
-    out = "NVIDIA GeForce RTX 3090, 24576, 23000\nNVIDIA GeForce RTX 3060, 12288, 11000\n"
+    out = "0, NVIDIA GeForce RTX 3060, 12288, 11000\n1, NVIDIA GeForce RTX 3090, 24576, 23000\n"
     monkeypatch.setattr(memory.subprocess, "run", lambda *a, **kw: SimpleNamespace(stdout=out))
     probe = memory.SystemProbe()
     gpus = probe.gpus()
-    assert [g["name"] for g in gpus] == ["NVIDIA GeForce RTX 3090", "NVIDIA GeForce RTX 3060"]
-    assert gpus[0]["total_bytes"] == 24576 * 1024 * 1024
+    assert [(g["index"], g["name"]) for g in gpus] == [(0, "NVIDIA GeForce RTX 3060"), (1, "NVIDIA GeForce RTX 3090")]
+    assert gpus[1]["total_bytes"] == 24576 * 1024 * 1024
     assert probe.nvidia_free_bytes() == (23000 + 11000) * 1024 * 1024
+
+
+# ---- several NVIDIA GPUs: the preset picks which ones ------------------------------------
+
+@dataclass
+class TwoGpuProbe(FakeProbe):
+    available: int = 100 * GiB
+    total: int = 128 * GiB
+
+    def gpus(self):
+        return [{"index": 0, "name": "RTX 3060", "total_bytes": 12 * GiB, "free_bytes": 11 * GiB},
+                {"index": 1, "name": "RTX 3090", "total_bytes": 24 * GiB, "free_bytes": 23 * GiB}]
+
+
+def test_all_gpus_split_adds_vram_less_per_gpu_buffers():
+    from enjrorun.memory import PER_EXTRA_GPU
+
+    est = MemoryEstimator(TwoGpuProbe()).estimate(entry(LLAMA3_8B, size=20 * GiB), Preset())
+    assert est["available_bytes"] == 34 * GiB - PER_EXTRA_GPU
+    assert [g["index"] for g in est["gpus"]] == [0, 1]
+    assert est["placement"] == "gpu"
+    assert any("Split across 2 GPUs" in n for n in est["notes"])
+
+
+def test_one_chosen_gpu_counts_only_its_vram():
+    e = MemoryEstimator(TwoGpuProbe())
+    big = e.estimate(entry(LLAMA3_8B, size=16 * GiB), Preset(gpus=[1]))
+    assert big["available_bytes"] == 23 * GiB and big["placement"] == "gpu" and big["verdict"] == "ok"
+    small = e.estimate(entry(LLAMA3_8B, size=16 * GiB), Preset(gpus=[0]))
+    assert small["vram_free_bytes"] == 11 * GiB and small["placement"] == "split"
+    assert [g["name"] for g in small["gpus"]] == ["RTX 3060"]
+
+
+def test_missing_gpu_is_explained():
+    est = MemoryEstimator(TwoGpuProbe()).estimate(entry(LLAMA3_8B), Preset(gpus=[0, 3]))
+    assert est["vram_free_bytes"] == 11 * GiB
+    assert any("GPU 3 isn't on this machine" in n for n in est["notes"])
+    none = MemoryEstimator(TwoGpuProbe()).estimate(entry(LLAMA3_8B), Preset(gpus=[3]))
+    assert none["placement"] == "cpu" and any("on the CPU" in n for n in none["notes"])
+
+
+def test_fit_on_gpu_uses_the_chosen_gpu():
+    e = MemoryEstimator(TwoGpuProbe())
+    meta = {**LLAMA3_8B, "context_length": 131072}
+    small = e.fit_on_gpu(entry(meta, size=7 * GiB), Preset(gpus=[0], ctx_per_request=131072))
+    big = e.fit_on_gpu(entry(meta, size=7 * GiB), Preset(gpus=[1], ctx_per_request=131072))
+    assert small["fits"] and big["fits"]
+    assert big["preset"]["ctx_per_request"] > small["preset"]["ctx_per_request"]
+    assert big["preset"]["gpus"] == [1]
 
 
 def test_nvidia_unparseable_output_means_no_gpu(monkeypatch):
     from types import SimpleNamespace
 
-    from strixrun import memory
+    from enjrorun import memory
 
     monkeypatch.setattr(memory.shutil, "which", lambda name: "nvidia-smi")
     monkeypatch.setattr(memory.subprocess, "run",
@@ -251,6 +300,13 @@ def test_fit_on_gpu_suggests_largest_context_that_keeps_every_layer_on_the_gpu()
     assert 2048 <= s["preset"]["ctx_per_request"] < 65536
     # q8_0 halves the KV cache, so it is chosen when it buys more context
     assert s["preset"]["cache_type_k"] in ("f16", "q8_0")
+
+
+def test_fit_on_gpu_tries_contexts_above_128k():
+    probe = FakeProbe(nvidia_free=200 * GiB, available=100 * GiB, total=256 * GiB)
+    meta = {**LLAMA3_8B, "context_length": 1048576}
+    s = MemoryEstimator(probe).fit_on_gpu(entry(meta, size=5 * GiB), Preset(ctx_per_request=1048576))
+    assert s["fits"] and 131072 < s["preset"]["ctx_per_request"] <= 1048576
 
 
 def test_fit_on_gpu_keeps_current_settings_when_they_already_fit():

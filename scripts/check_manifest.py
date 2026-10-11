@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pin_binary import REPO, VARIANTS
 
-MANIFEST = Path(__file__).resolve().parents[1] / "src" / "strixrun" / "binaries" / "manifest.json"
+MANIFEST = Path(__file__).resolve().parents[1] / "src" / "enjrorun" / "binaries" / "manifest.json"
 
 
 def head_ok(url: str) -> bool:

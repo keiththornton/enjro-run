@@ -7,12 +7,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun import errors as E
-from strixrun.backend.base import ModelStatus
-from strixrun.backend.supervisor import LocalProcessBackend, classify_crash
-from strixrun.events import EventBus
-from strixrun.presets import Preset
-from strixrun.registry import ModelEntry
+from enjrorun import errors as E
+from enjrorun.backend.base import ModelStatus
+from enjrorun.backend.supervisor import LocalProcessBackend, classify_crash
+from enjrorun.events import EventBus
+from enjrorun.presets import Preset
+from enjrorun.registry import ModelEntry
 
 from .test_procutil import is_alive
 
@@ -199,3 +199,15 @@ async def test_layer_placement_is_read_from_the_load_log(backend, monkeypatch):
     await backend.load(m, Preset())
     state = await backend.wait_settled(m.id)
     assert state.gpu_layers == (20, 29) and state.to_dict()["gpu_layers"] == [20, 29]
+
+
+async def test_chosen_gpus_reach_llama_server_and_are_reported(backend, monkeypatch):
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+    m = model()
+    await backend.load(m, Preset())
+    assert (await backend.wait_settled(m.id)).devices is None  # all GPUs: nothing restricted
+    await backend.unload(m.id)
+    await backend.load(m, Preset(gpus=[1]))
+    state = await backend.wait_settled(m.id)
+    assert state.devices == ["CUDA0 (Fake GPU 1)"]
+    assert state.to_dict()["devices"] == ["CUDA0 (Fake GPU 1)"]

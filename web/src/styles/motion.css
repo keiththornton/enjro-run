@@ -21,33 +21,33 @@
 .pressable:active:not(:disabled) {
   transform: scale(0.97);
 }
-@keyframes strix-spin {
+@keyframes enjro-spin {
   to {
     transform: rotate(360deg);
   }
 }
-@keyframes strix-pop-in {
+@keyframes enjro-pop-in {
   from {
     opacity: 0;
     transform: scale(0.97);
   }
 }
-@keyframes strix-fade-out {
+@keyframes enjro-fade-out {
   to {
     opacity: 0;
   }
 }
 .pop[data-state="open"] {
-  animation: strix-pop-in var(--dur-pop) var(--ease-out);
+  animation: enjro-pop-in var(--dur-pop) var(--ease-out);
 }
 .pop[data-state="closed"] {
-  animation: strix-fade-out var(--dur-exit) var(--ease-out);
+  animation: enjro-fade-out var(--dur-exit) var(--ease-out);
 }
 .dialog[data-state="open"]:not([data-instant="true"]) {
-  animation: strix-pop-in var(--dur-dialog) var(--ease-out);
+  animation: enjro-pop-in var(--dur-dialog) var(--ease-out);
 }
 .dialog[data-state="closed"] {
-  animation: strix-fade-out var(--dur-exit) var(--ease-out);
+  animation: enjro-fade-out var(--dur-exit) var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
   .expand,
@@ -59,10 +59,10 @@
   }
   .pop[data-state="open"],
   .dialog[data-state="open"] {
-    animation: strix-fade-in var(--dur-pop) linear;
+    animation: enjro-fade-in var(--dur-pop) linear;
   }
 }
-@keyframes strix-fade-in {
+@keyframes enjro-fade-in {
   from {
     opacity: 0;
   }

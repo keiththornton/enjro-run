@@ -6,8 +6,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from strixrun.app import create_app
-from strixrun.settings import SettingsStore
+from enjrorun.app import create_app
+from enjrorun.settings import SettingsStore
 
 from .conftest import serve_app
 
@@ -17,7 +17,7 @@ TOKEN = "hf_" + "a1B2" * 9
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("STRIX_HOME", str(tmp_path / "strix"))
+    monkeypatch.setenv("ENJRO_HOME", str(tmp_path / "strix"))
     monkeypatch.delenv("HF_TOKEN", raising=False)
     monkeypatch.setattr("huggingface_hub.constants.HF_TOKEN_PATH", str(tmp_path / "hf" / "token"))
     return tmp_path
@@ -58,7 +58,7 @@ async def test_api_key_lifecycle_and_rotation_invalidates_sessions(home):
     async with serve_app(app()) as url:
         async with httpx.AsyncClient(base_url=url) as c:
             key1 = (await c.post("/admin/settings/api-key", json={"action": "generate"})).json()["key"]
-            assert key1.startswith("sk-strix-")
+            assert key1.startswith("sk-enjro-")
             assert key1 not in (await c.get("/admin/settings")).text  # shown once only
             await c.put("/admin/settings", json={"trust_loopback": False}, headers={"Authorization": f"Bearer {key1}"})
 

@@ -1,46 +1,47 @@
-/* Design tokens — the single source for every color, size, and duration (docs/design/brief.md). */
+/* Design tokens — the single source for every color, size, and duration. */
 :root {
-  /* Color: inherited from Strix Data */
-  --bg: #111214;
-  --panel: #17181b;
-  --raised: #1d1f22;
-  --hover: #232528;
-  --border: #2a2c2f;
-  --border-soft: #222427;
-  --border-strong: #3a3d41;
-  --text: #dcdee2;
-  --secondary: #9a9da6;
-  --muted: #6f747e; /* decorative only — fails AA as text */
-  --accent: #d4f246; /* the only accent: live / active / primary */
-  --accent-soft: #d4f24612;
-  --accent-dark: #20250e;
-  --on-accent: #111214;
-  --danger: #f28b87;
-  --editor-active: #1a1c1f;
+  /* Color: the Andromeda VS Code theme (EliverLara/Andromeda), shared with enjro-shell.
+     Cyan is the accent: live / active / primary, as in Andromeda's tabs and buttons. */
+  --bg: #1e2027; /* between Andromeda's widget #20232a and peek view #1a1c22 */
+  --panel: #23262e; /* editor.background */
+  --raised: #2b303b; /* input.background */
+  --hover: #2e323d; /* editor.lineHighlightBackground */
+  --border: #363c49; /* dropdown.border */
+  --border-soft: #2b303b;
+  --border-strong: #4a5162;
+  --text: #d5ced9; /* editor.foreground */
+  --secondary: #baafc0; /* activityBar.foreground */
+  --muted: #746f77; /* line numbers; decorative only — fails AA as text */
+  --accent: #00e8c6; /* cyan */
+  --accent-soft: #00e8c612;
+  --accent-dark: #163b3b;
+  --on-accent: #20232b; /* badge.foreground */
+  --danger: #fc644d; /* errorForeground */
+  --editor-active: #282b35; /* list.focusBackground */
 
-  /* Color: StrixCode additions */
-  --meta: #83888f;
-  --add: #cfe188;
-  --del: #e8b0ad;
-  --del-soft: #f28b870d;
-  --selection: #d4f24637;
-  --scroll-thumb: #ffffff17;
-  --scroll-thumb-hover: #ffffff2d;
+  /* Color: Andromeda syntax and UI extras */
+  --meta: #a0a1a7; /* comments */
+  --add: #96e072; /* green */
+  --del: #ee5d43; /* red */
+  --del-soft: #ee5d430d;
+  --selection: #3d4352; /* editor.selectionBackground */
+  --scroll-thumb: #3a3f4c77; /* scrollbarSlider.background */
+  --scroll-thumb-hover: #3a3f4caa;
   --kbd-border: #ffffff14;
-  --shadow-pop: 0 8px 24px #0006;
-  --overlay: #0b0c0e99;
+  --shadow-pop: 0 8px 24px #14151acc; /* widget.shadow */
+  --overlay: #14151a99;
 
-  /* Code and terminal colors — desaturated, never lime */
-  --syn-keyword: var(--text);
+  /* Code and terminal colors: Andromeda's palette */
+  --syn-keyword: #c74ded; /* purple */
   --syn-string: var(--add);
-  --syn-const: #b9c3d6;
+  --syn-const: #f39c12; /* orange */
   --syn-comment: var(--meta);
   --syn-punct: var(--secondary);
-  --ansi-red: var(--danger);
-  --ansi-yellow: #e6d3a3;
-  --ansi-blue: #9fb4d9;
-  --ansi-magenta: #c7a8d9;
-  --ansi-cyan: #9fd0c7;
+  --ansi-red: #ee5d43;
+  --ansi-yellow: #ffe66d;
+  --ansi-blue: #7cb7ff;
+  --ansi-magenta: #ff00aa;
+  --ansi-cyan: #00e8c6;
 
   /* Type */
   --sans: "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;

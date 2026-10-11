@@ -161,7 +161,7 @@
   border: 1.5px solid var(--border-strong);
   border-top-color: var(--secondary);
   border-radius: 50%;
-  animation: strix-spin var(--dur-spin) linear infinite;
+  animation: enjro-spin var(--dur-spin) linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .spinner {
@@ -294,7 +294,7 @@
   text-decoration-color: var(--text);
 }
 
-/* Disabled buttons: muted text; a primary loses its lime (lime means live or primary *now*). */
+/* Disabled buttons: muted text; a primary loses its accent (the accent means live or primary *now*). */
 .btn:disabled,
 .icon-btn:disabled {
   color: var(--muted);

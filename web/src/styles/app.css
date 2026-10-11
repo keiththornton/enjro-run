@@ -1,4 +1,4 @@
-/* StrixRun app shell. Every value comes from tokens.css (StrixCode design brief). */
+/* Enjro Run app shell. Every value comes from tokens.css (Andromeda colors). */
 
 .shell {
   display: grid;
@@ -51,9 +51,10 @@
 .segmented button:hover {
   color: var(--text);
 }
+/* Selected: cyan text, like Andromeda's active tab. */
 .segmented button[aria-pressed="true"] {
   background: var(--raised);
-  color: var(--text);
+  color: var(--accent);
 }
 
 /* Page area */
@@ -224,7 +225,7 @@
   border: 1.5px solid var(--border-strong);
 }
 .glyph[data-status="ready"] .dot {
-  background: var(--accent); /* lime = live: the only lime on this page */
+  background: var(--accent); /* cyan = live: the only accent on this page */
   border-color: var(--accent);
 }
 .glyph[data-status="crashed"] .dot {
@@ -380,6 +381,17 @@ select.text-field {
   height: 24px;
   font-family: var(--mono);
   font-size: var(--fs-11);
+}
+/* GPU names are long: let the chips wrap instead of overflowing the sheet. */
+.gpu-picker {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.gpu-picker button {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ---- memory estimate ----------------------------------------------------------------- */
